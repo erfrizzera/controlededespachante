@@ -31,7 +31,8 @@ var CABECALHO_ATAS = [
   'Data do Protocolo',               // 13
   'Arquivo: Comprovante de Despesa', // 14
   'Data de Conclusão',               // 15
-  'Status Anterior'                  // 16
+  'Status Anterior',                 // 16
+  'Status Financeiro'                // 17  (trilha financeira, independente do Status da Junta)
 ];
 
 
@@ -97,6 +98,7 @@ function getAbaAtas_() {
   }
 
   getAbaUsuarios_(planilha);
+  getAbaPendencias_(planilha);
   return aba;
 }
 
@@ -153,7 +155,8 @@ function getAtas() {
       arquivoComprovante:String(linha[13] || ''),
       urlComprovante:    lerLink_(rico[13]),
       dataConclusao:     formatarData_(linha[14], tz),
-      statusAnterior:    String(linha[15] || '')
+      statusAnterior:    String(linha[15] || ''),
+      statusFinanceiro:  String(linha[16] || '')
     });
   }
   return atas;
@@ -211,12 +214,13 @@ function saveAta(ata) {
   // ID final: mantém o existente, ou reserva um novo (segurança se vier vazio).
   var idFinal = ata.id || reservarProximoId();
 
-  var statusAntigo = '', dataEnvioAtual = null, dataProtocoloAtual = null, dataConclusaoAtual = null;
+  var statusAntigo = '', dataEnvioAtual = null, dataProtocoloAtual = null, dataConclusaoAtual = null, statusFinanceiroAtual = '';
   if (linhaExistente !== -1) {
-    statusAntigo       = String(dados[linhaExistente - 1][4] || '');
-    dataEnvioAtual     = dados[linhaExistente - 1][3];
-    dataProtocoloAtual = dados[linhaExistente - 1][12];
-    dataConclusaoAtual = dados[linhaExistente - 1][14];
+    statusAntigo          = String(dados[linhaExistente - 1][4] || '');
+    dataEnvioAtual        = dados[linhaExistente - 1][3];
+    dataProtocoloAtual    = dados[linhaExistente - 1][12];
+    dataConclusaoAtual    = dados[linhaExistente - 1][14];
+    statusFinanceiroAtual = String(dados[linhaExistente - 1][16] || '');
   }
 
   // Data do Protocolo: automática quando o número aparece.
@@ -242,7 +246,9 @@ function saveAta(ata) {
     Number(ata.reembolso) || 0, Number(ata.honorarios) || 0,
     ata.arquivoNotaFiscal || '', folderUrl ? 'Abrir Pasta' : '',
     dataProtocolo || '', ata.arquivoComprovante || '', dataConclusao || '',
-    ata.statusAnterior || ''
+    ata.statusAnterior || '',
+    (ata.statusFinanceiro !== undefined && ata.statusFinanceiro !== null && ata.statusFinanceiro !== '')
+      ? ata.statusFinanceiro : statusFinanceiroAtual
   ];
 
   var linhaAlvo;
@@ -499,10 +505,11 @@ function loginWithPassword(email, senha) {
   var aba = getAbaUsuarios_();
   var dados = aba.getDataRange().getValues();
 
-  var achou = false, senhaOk = false;
+  var achou = false, senhaOk = false, permissao = 'admin';
   for (var i = 1; i < dados.length; i++) {
     if (dados[i][0] && String(dados[i][0]).trim().toLowerCase() === alvo) {
       achou = true;
+      permissao = dados[i][1] ? String(dados[i][1]).trim().toLowerCase() : 'admin';
       var senhaBanco = dados[i][2] ? String(dados[i][2]).trim() : '';
       if (senhaBanco === String(senha).trim()) senhaOk = true;
       break;
@@ -514,7 +521,7 @@ function loginWithPassword(email, senha) {
   var token = Utilities.getUuid().replace(/-/g, '');
   var expira = new Date().getTime() + 7 * 24 * 60 * 60 * 1000;
   PropertiesService.getScriptProperties().setProperty('TOKEN_' + token, alvo + '|' + expira + '|session');
-  return { sucesso: true, token: token };
+  return { sucesso: true, token: token, permissao: permissao };
 }
 
 /** Valida um token de sessão guardado no navegador. */
@@ -530,7 +537,7 @@ function validateSessionToken(token) {
   if (new Date().getTime() > expira) { props.deleteProperty('TOKEN_' + token); return { sucesso: false, erro: 'Sessão expirada.' }; }
   if (tipo === 'url') return { sucesso: false, aguardandoAtivacao: true };
   if (!isEmailAuthorized_(email)) { props.deleteProperty('TOKEN_' + token); return { sucesso: false, erro: 'Usuário não autorizado.' }; }
-  return { sucesso: true, email: email };
+  return { sucesso: true, email: email, permissao: getPermissao_(email) };
 }
 
 /** Ativa uma sessão vinda por link na URL (magic link — reservado p/ futuro). */
@@ -602,4 +609,160 @@ function setLinkCell_(aba, linha, coluna, texto, url) {
   } else {
     celula.setValue(texto || '');
   }
+}
+
+
+/* ==========================================================================
+ * 12. PERFIS (V2) — admin / cobra / despachante
+ * ========================================================================== */
+
+/** Devolve o perfil de um e-mail na aba Usuarios (coluna Permissão). */
+function getPermissao_(email) {
+  if (!email) return 'admin';
+  var alvo = email.trim().toLowerCase();
+  var dados = getAbaUsuarios_().getDataRange().getValues();
+  for (var i = 1; i < dados.length; i++) {
+    if (dados[i][0] && String(dados[i][0]).trim().toLowerCase() === alvo) {
+      return dados[i][1] ? String(dados[i][1]).trim().toLowerCase() : 'admin';
+    }
+  }
+  return 'admin';
+}
+
+
+/* ==========================================================================
+ * 13. TRILHA FINANCEIRA (V2) — independente do status da Junta
+ * ========================================================================== */
+
+/** Muda só o Status Financeiro de uma ata (Custos lançados / Pendente pagamento Cobra / Pago). */
+function setStatusFinanceiro(ataId, novo) {
+  var aba = getAbaAtas_();
+  var dados = aba.getDataRange().getValues();
+  for (var i = 1; i < dados.length; i++) {
+    if (String(dados[i][0]) === String(ataId)) {
+      aba.getRange(i + 1, 17).setValue(novo || '');
+      return 'Sucesso';
+    }
+  }
+  return 'Não encontrado';
+}
+
+
+/* ==========================================================================
+ * 14. PENDÊNCIA COBRA (V2) — conversa com histórico (aba Pendencias)
+ * ========================================================================== */
+
+/** Aba "Pendencias": uma linha por mensagem da conversa. */
+function getAbaPendencias_(planilha) {
+  planilha = planilha || getPlanilha_();
+  var aba = planilha.getSheetByName('Pendencias');
+  if (!aba) {
+    aba = planilha.insertSheet('Pendencias');
+    aba.getRange(1, 1, 1, 6).setValues([['ID da Ata', 'Data/Hora', 'Autor', 'Papel', 'Mensagem', 'Arquivo']])
+      .setBackground('#1A365D').setFontColor('#FFFFFF').setFontWeight('bold');
+    aba.setFrozenRows(1);
+  }
+  return aba;
+}
+
+/** Devolve a conversa de pendência de uma ata, em ordem cronológica. */
+function getPendencias(ataId) {
+  var aba = getAbaPendencias_();
+  var intervalo = aba.getDataRange();
+  var dados = intervalo.getValues();
+  var ricos = intervalo.getRichTextValues();
+  var tz = aba.getParent().getSpreadsheetTimeZone() || 'America/Sao_Paulo';
+  var msgs = [];
+  for (var i = 1; i < dados.length; i++) {
+    if (String(dados[i][0]) !== String(ataId)) continue;
+    msgs.push({
+      dataHora:   dados[i][1] instanceof Date ? Utilities.formatDate(dados[i][1], tz, 'dd/MM/yyyy HH:mm') : String(dados[i][1] || ''),
+      autor:      String(dados[i][2] || ''),
+      papel:      String(dados[i][3] || ''),
+      mensagem:   String(dados[i][4] || ''),
+      arquivo:    String(dados[i][5] || ''),
+      urlArquivo: ricos[i][5] ? (ricos[i][5].getLinkUrl() || '') : ''
+    });
+  }
+  return msgs;
+}
+
+/**
+ * Registra uma mensagem na conversa de pendência de uma ata.
+ * dados = { ataId, autor, papel, mensagem, arquivoNome, base64, acao }
+ * acao: 'abrir' (marca Pendência Cobra) | 'responder' | 'resolver' (volta ao status anterior).
+ * O anexo (se houver) vai para a MESMA pasta da ata no Drive. Avisa por e-mail.
+ */
+function postPendencia(dados) {
+  var abaAtas = getAbaAtas_();
+  var linhas = abaAtas.getDataRange().getValues();
+  var linha = -1;
+  for (var i = 1; i < linhas.length; i++) {
+    if (String(linhas[i][0]) === String(dados.ataId)) { linha = i + 1; break; }
+  }
+  if (linha === -1) throw new Error('Ata não encontrada.');
+
+  var empresa     = String(linhas[linha - 1][1] || '');
+  var descricao   = String(linhas[linha - 1][2] || '');
+  var statusAtual = String(linhas[linha - 1][4] || '');
+
+  // Anexo opcional → pasta da ata.
+  var arqNome = dados.arquivoNome || '', arqUrl = '';
+  if (dados.base64 && arqNome) {
+    var up = uploadFileToDrive(dados.base64, arqNome, dados.ataId, empresa, descricao);
+    if (up && up.url) arqUrl = up.url;
+  }
+
+  // Grava a mensagem (se houver texto ou anexo).
+  if (dados.mensagem || arqNome) {
+    var abaP = getAbaPendencias_();
+    abaP.appendRow([dados.ataId, new Date(), dados.autor || '', dados.papel || '', dados.mensagem || '', arqNome]);
+    if (arqNome && arqUrl) setLinkCell_(abaP, abaP.getLastRow(), 6, arqNome, arqUrl);
+  }
+
+  // Ajusta o status da ata conforme a ação.
+  var novoStatus = statusAtual;
+  if (dados.acao === 'abrir' && statusAtual !== 'Pendência Cobra') {
+    abaAtas.getRange(linha, 16).setValue(statusAtual); // guarda Status Anterior
+    abaAtas.getRange(linha, 5).setValue('Pendência Cobra');
+    novoStatus = 'Pendência Cobra';
+  } else if (dados.acao === 'resolver' && statusAtual === 'Pendência Cobra') {
+    var anterior = String(linhas[linha - 1][15] || '') || 'Enviado';
+    abaAtas.getRange(linha, 5).setValue(anterior);
+    abaAtas.getRange(linha, 16).setValue('');
+    novoStatus = anterior;
+  }
+
+  // E-mail de aviso (falha em silêncio).
+  try {
+    var folderRico = abaAtas.getRange(linha, 12).getRichTextValue();
+    sendPendenciaEmail_({
+      id: dados.ataId, empresa: empresa, descricao: descricao,
+      folderUrl: folderRico ? (folderRico.getLinkUrl() || '') : '',
+      papel: dados.papel || '', mensagem: dados.mensagem || '', acao: dados.acao || 'responder'
+    });
+  } catch (e) { Logger.log('E-mail pendência falhou: ' + e); }
+
+  return { sucesso: true, novoStatus: novoStatus };
+}
+
+/** E-mail curto avisando de nova mensagem/ação na pendência. */
+function sendPendenciaEmail_(p) {
+  var emails = getNotificationEmails();
+  if (!emails || emails.length === 0) return;
+  var titulo = p.acao === 'abrir' ? 'Nova Pendência Cobra'
+             : p.acao === 'resolver' ? 'Pendência resolvida'
+             : 'Nova resposta na pendência';
+  var sistemaUrl = getSystemUrl_();
+  var html =
+    "<div style='font-family:Arial,sans-serif;max-width:600px;border:1px solid #cbd5e1;border-radius:12px;padding:24px;color:#0f172a;'>" +
+      "<h2 style='color:#1e3a8a;margin:0 0 4px;'>" + titulo + "</h2>" +
+      "<p style='color:#475569;margin:0 0 16px;font-size:13px;'>Ata " + p.id + " — " + p.empresa + "</p>" +
+      (p.mensagem ? "<div style='background:#f8fafc;border-left:4px solid #ef4444;border-radius:8px;padding:14px;margin-bottom:16px;'><strong>" + p.papel + ":</strong> " + p.mensagem + "</div>" : "") +
+      "<div style='text-align:center;'>" +
+        (p.folderUrl ? "<a href='" + p.folderUrl + "' style='display:inline-block;background:#10b981;color:#fff;padding:10px 18px;text-decoration:none;border-radius:8px;font-weight:600;font-size:13px;margin-right:8px;'>📂 Pasta da ata</a>" : "") +
+        (sistemaUrl ? "<a href='" + sistemaUrl + "' style='display:inline-block;background:#2563eb;color:#fff;padding:10px 18px;text-decoration:none;border-radius:8px;font-weight:600;font-size:13px;'>🖥️ Abrir sistema</a>" : "") +
+      "</div>" +
+    "</div>";
+  MailApp.sendEmail({ to: emails.join(','), subject: titulo + ': Ata ' + p.id + ' — ' + p.empresa, htmlBody: html, body: titulo + ' — Ata ' + p.id, name: 'Cobra Brasil', noReply: true });
 }
