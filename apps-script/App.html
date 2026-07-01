@@ -452,6 +452,32 @@
       margin-top: 8px; border: 1px solid var(--border-color);
     }
     .btn-logout:hover { background-color: rgba(239, 68, 68, 0.1); color: #ef4444; border-color: rgba(239, 68, 68, 0.2); }
+
+    /* ===== V2: visibilidade por perfil (admin / cobra / despachante) ===== */
+    .role-cobra #menu-settings, .role-despachante #menu-settings,
+    .role-cobra #link-spreadsheet, .role-despachante #link-spreadsheet,
+    .role-despachante #menu-drive,
+    .role-despachante #btn-new-ata,
+    .role-cobra .btn-admin-only, .role-despachante .btn-admin-only,
+    .role-despachante .btn-pay { display: none !important; }
+
+    /* ===== V2: selos da trilha financeira ===== */
+    .badge-fin-lancado  { background-color: rgba(59,130,246,.12); color: #3b82f6; border: 1px solid rgba(59,130,246,.25); }
+    .badge-fin-pendente { background-color: rgba(249,115,22,.12); color: #f97316; border: 1px solid rgba(249,115,22,.25); }
+    .badge-fin-pago     { background-color: rgba(16,185,129,.12); color: #10b981; border: 1px solid rgba(16,185,129,.25); }
+    .badge-fin-none     { background-color: rgba(100,116,139,.10); color: var(--text-muted); border: 1px solid var(--border-color); }
+    .status-cell-stack  { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+
+    /* ===== V2: conversa de pendência ===== */
+    .conversa { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; flex-grow: 1; padding-right: 4px; margin-bottom: 16px; }
+    .msg-bolha { background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 14px; }
+    .msg-bolha.msg-cobra { border-left: 3px solid var(--color-primary); }
+    .msg-bolha.msg-despachante { border-left: 3px solid var(--color-warning); }
+    .msg-topo { display: flex; justify-content: space-between; gap: 8px; font-size: 9px; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .5px; }
+    .msg-topo strong { color: var(--text-secondary); }
+    .msg-texto { font-size: 12px; color: var(--text-primary); white-space: pre-wrap; line-height: 1.4; }
+    .msg-anexo { margin-top: 8px; font-size: 10px; }
+    .conversa-vazia { color: var(--text-muted); font-size: 12px; text-align: center; padding: 24px; }
   </style>
 </head>
 <body class="light-theme">
@@ -562,9 +588,9 @@
             <div class="kpi-icon protocolo"><span class="material-icons-round">pending_actions</span></div>
             <div class="kpi-info"><span class="kpi-label">Em Protocolo</span><h3 class="kpi-value" id="kpi-protocolo">0</h3></div>
           </div>
-          <div class="kpi-card" data-status="Aguardando Pagamento">
+          <div class="kpi-card" data-status="">
             <div class="kpi-icon pagamento"><span class="material-icons-round">payments</span></div>
-            <div class="kpi-info"><span class="kpi-label">Aguardando Pgto.</span><h3 class="kpi-value" id="kpi-pagamento">0</h3></div>
+            <div class="kpi-info"><span class="kpi-label">Pendente Pagto. (Cobra)</span><h3 class="kpi-value" id="kpi-pagamento">0</h3></div>
           </div>
           <div class="kpi-card" data-status="Concluído">
             <div class="kpi-icon concluido"><span class="material-icons-round">task_alt</span></div>
@@ -584,8 +610,8 @@
                 <option value="Enviado">Enviado</option>
                 <option value="Em Protocolo">Em Protocolo</option>
                 <option value="Registrada">Registrada</option>
-                <option value="Aguardando Pagamento">Aguardando Pagamento</option>
                 <option value="Concluído">Concluído</option>
+                <option value="Pendência Cobra">Pendência Cobra</option>
               </select>
             </div>
           </div>
@@ -786,13 +812,48 @@
     </div>
   </div>
 
+  <!-- Modal: Conversa de Pendência Cobra (V2) -->
+  <div class="modal-overlay" id="pendencia-modal">
+    <div class="modal-container">
+      <header class="modal-header">
+        <h3 id="pendencia-title">Pendência Cobra</h3>
+        <button class="btn-close" id="btn-close-pendencia"><span class="material-icons-round">close</span></button>
+      </header>
+
+      <div class="conversa" id="pendencia-conversa"></div>
+
+      <form id="pendencia-form" style="border-top: 1px solid var(--border-color); padding-top: 16px;">
+        <input type="hidden" id="pendencia-ata-id">
+        <div class="form-group">
+          <label for="pendencia-msg" id="pendencia-msg-label">Descreva a pendência</label>
+          <textarea id="pendencia-msg" class="form-control" rows="3" placeholder="Escreva aqui..."></textarea>
+        </div>
+        <div class="file-dropzone" id="dropzone-pendencia" style="margin-top: 8px;">
+          <span class="material-icons-round file-icon">attach_file</span>
+          <p class="dropzone-text">Anexar documento (opcional)</p>
+          <input type="file" id="file-pendencia" class="hidden-file-input">
+          <div class="file-preview hidden" id="preview-pendencia">
+            <span class="material-icons-round preview-icon">description</span>
+            <span class="file-name" id="name-pendencia"></span>
+            <button type="button" class="btn-remove-file" id="remove-pendencia"><span class="material-icons-round">cancel</span></button>
+          </div>
+        </div>
+        <footer class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-resolver-pendencia">Resolver pendência</button>
+          <button type="submit" class="btn btn-primary" id="btn-enviar-pendencia">Enviar</button>
+        </footer>
+      </form>
+    </div>
+  </div>
+
   <!-- Script Lógico -->
   <script>
     // Injetado pelo Google Apps Script
     const URL_TOKEN_RAW = "<?= urlToken ?>";
     const URL_TOKEN = (URL_TOKEN_RAW.startsWith("<" + "?") || URL_TOKEN_RAW === "") ? "" : URL_TOKEN_RAW;
 
-    const pipelineStages = ["Enviado", "Em Protocolo", "Registrada", "Aguardando Pagamento", "Concluído"];
+    const pipelineStages = ["Enviado", "Em Protocolo", "Registrada", "Concluído"];
+    const financeiroStages = ["Custos lançados", "Pendente pagamento Cobra", "Pago"];
     
     const companiesList = [
       "OUTRA",
@@ -895,6 +956,24 @@
       }
     }
 
+    // V2: selo da trilha financeira (independente do status da Junta).
+    function getFinanceiroBadge(fin) {
+      switch (fin) {
+        case 'Custos lançados':          return '<span class="badge badge-fin-lancado">💰 Custos lançados</span>';
+        case 'Pendente pagamento Cobra': return '<span class="badge badge-fin-pendente">⏳ Pendente pagto Cobra</span>';
+        case 'Pago':                     return '<span class="badge badge-fin-pago">✅ Pago</span>';
+        default:                         return '<span class="badge badge-fin-none">— sem custos</span>';
+      }
+    }
+
+    // V2: aplica a visibilidade por perfil trocando a classe no <body>.
+    // O CSS cuida de esconder menus/botões conforme role-admin / role-cobra / role-despachante.
+    function applyRoleVisibility() {
+      document.body.classList.remove('role-admin', 'role-cobra', 'role-despachante');
+      const role = (state.role || 'admin').toLowerCase();
+      document.body.classList.add('role-' + (['admin','cobra','despachante'].includes(role) ? role : 'admin'));
+    }
+
     function formatDateString(dateStr) {
       if (!dateStr) return "-";
       if (dateStr instanceof Date) {
@@ -950,7 +1029,8 @@
       selectedCompanyFilter: "",
       selectedStatusFilter: "",
       currentFolderFilter: "all",
-      isGoogleAppsScript: false
+      isGoogleAppsScript: false,
+      role: 'admin'
     };
 
     // Dados Locais Fictícios
@@ -999,6 +1079,7 @@
       checkEnvironment();
       populateCompanyDropdowns();
       setupEventListeners();
+      setupPendencia();
       checkAuth();
     }
 
@@ -1253,8 +1334,9 @@
           const totalCost = (Number(ata.reembolso) || 0) + (Number(ata.honorarios) || 0);
           const costText = totalCost > 0 ? `R$ ${totalCost.toFixed(2).replace('.', ',')}` : "-";
           
-          // Badge do status
+          // Badge do status (Junta) + selo financeiro (V2)
           const statusBadge = `<span class="badge badge-${getStatusClass(ata.status)}">${ata.status}</span>`;
+          const finBadge = getFinanceiroBadge(ata.statusFinanceiro);
           
           // Calcular duração do processo societário
           const duration = calculateDuration(ata.dataEnvio, ata.status, ata.dataConclusao);
@@ -1275,7 +1357,7 @@
           }
           filesHTML += '</div>';
 
-          // Botões contextuais do fluxo (Despachante)
+          // Ação da JUNTA (V2): Protocolar → Registrar → Concluir
           let workflowActionHTML = "";
           switch (ata.status) {
             case 'Enviado':
@@ -1285,24 +1367,29 @@
               workflowActionHTML = `<button class="btn-workflow-action action-btn-protocolo" onclick="openModal('${ata.id}', 'workflow_registro')"><span class="material-icons-round" style="font-size:11px;">verified</span> Registrar</button>`;
               break;
             case 'Registrada':
-              workflowActionHTML = `<button class="btn-workflow-action action-btn-registrada" onclick="openModal('${ata.id}', 'workflow_financeiro')"><span class="material-icons-round" style="font-size:11px;">payments</span> Lançar Custos</button>`;
-              break;
-            case 'Aguardando Pagamento':
-              workflowActionHTML = `<button class="btn-workflow-action action-btn-pagamento" onclick="openModal('${ata.id}', 'workflow_pagar')"><span class="material-icons-round" style="font-size:11px;">check_circle</span> Pagar</button>`;
-              break;
-            case 'Concluído':
-              workflowActionHTML = "";
+              workflowActionHTML = `<button class="btn-workflow-action action-btn-registrada" onclick="openModal('${ata.id}', 'workflow_concluir')"><span class="material-icons-round" style="font-size:11px;">task_alt</span> Concluir Junta</button>`;
               break;
             case 'Pendência Cobra':
               workflowActionHTML = `<span style="font-size: 9px; font-weight: 700; color: var(--color-danger); text-transform: uppercase; display: inline-flex; align-items: center; gap: 4px; border: 1px solid rgba(239, 68, 68, 0.25); background-color: rgba(239, 68, 68, 0.08); padding: 4px 10px; border-radius: 20px;"><span class="material-icons-round" style="font-size: 11px;">hourglass_empty</span> Pendente</span>`;
               break;
           }
 
+          // Ação da trilha FINANCEIRA (V2): Lançar → Pedir pagamento → Confirmar pagamento
+          let financeiroActionHTML = "";
+          const finStatus = ata.statusFinanceiro || "";
+          if (finStatus === "") {
+            financeiroActionHTML = `<button class="btn-workflow-action action-btn-pagamento" onclick="openModal('${ata.id}', 'fin_lancar')"><span class="material-icons-round" style="font-size:11px;">request_quote</span> Lançar NF/Reembolso</button>`;
+          } else if (finStatus === "Custos lançados") {
+            financeiroActionHTML = `<button class="btn-workflow-action action-btn-registrada" onclick="marcarPendentePagamento('${ata.id}')"><span class="material-icons-round" style="font-size:11px;">schedule_send</span> Pedir pagamento</button>`;
+          } else if (finStatus === "Pendente pagamento Cobra") {
+            financeiroActionHTML = `<button class="btn-workflow-action action-btn-protocolo btn-pay" onclick="openModal('${ata.id}', 'fin_pagar')"><span class="material-icons-round" style="font-size:11px;">check_circle</span> Confirmar pagamento</button>`;
+          }
+
           let isPending = ata.status === 'Pendência Cobra';
           let pendencyButton = "";
           if (ata.status !== 'Concluído') {
             pendencyButton = `
-              <button class="btn-icon ${isPending ? 'pending-active' : ''}" onclick="togglePendency('${ata.id}')" title="${isPending ? 'Resolver Pendência Cobra (Retornar ao status anterior)' : 'Marcar como Pendência Cobra'}">
+              <button class="btn-icon ${isPending ? 'pending-active' : ''}" onclick="openPendenciaModal('${ata.id}')" title="${isPending ? 'Pendência Cobra (abrir conversa)' : 'Abrir Pendência Cobra'}">
                 <span class="material-icons-round" style="${isPending ? 'color: var(--color-danger); font-weight: bold;' : 'color: var(--text-muted);'}">warning</span>
               </button>
             `;
@@ -1322,19 +1409,20 @@
               ${ata.dataProtocolo ? `<span style="font-size: 9px; color: var(--text-muted);">Inserido: ${formatDateString(ata.dataProtocolo)}</span>` : ''}
             </td>
             <td><span style="font-weight: 600;">${duration}</span></td>
-            <td>${statusBadge}</td>
+            <td><div class="status-cell-stack">${statusBadge}${finBadge}</div></td>
             <td>${filesHTML}</td>
             <td>
               <div class="action-group">
                 ${workflowActionHTML}
+                ${financeiroActionHTML}
                 ${pendencyButton}
                 ${ata.folderUrl ? `<button class="btn-icon" onclick="window.open('${ata.folderUrl}', '_blank')" title="Abrir pasta da ata no Google Drive"><span class="material-icons-round" style="color: var(--color-success);">folder</span></button>` : ''}
-                
-                <!-- Botão Administrador discreto no final para ajustes manuais -->
-                <button class="btn-icon edit" onclick="openModal('${ata.id}', 'edit_admin')" title="Correção Manual (Administrador)" style="margin-left: 8px;">
+
+                <!-- Correção Manual + Excluir: só admin (classe btn-admin-only) -->
+                <button class="btn-icon edit btn-admin-only" onclick="openModal('${ata.id}', 'edit_admin')" title="Correção Manual (Administrador)" style="margin-left: 8px;">
                   <span class="material-icons-round">settings</span>
                 </button>
-                <button class="btn-icon delete" onclick="deleteAta('${ata.id}')" title="Excluir">
+                <button class="btn-icon delete btn-admin-only" onclick="deleteAta('${ata.id}')" title="Excluir">
                   <span class="material-icons-round">delete</span>
                 </button>
               </div>
@@ -1347,7 +1435,7 @@
       // KPIs
       kpiTotal.innerText = state.atas.length;
       kpiProtocolo.innerText = state.atas.filter(a => a.status === 'Em Protocolo').length;
-      kpiPagamento.innerText = state.atas.filter(a => a.status === 'Aguardando Pagamento').length;
+      kpiPagamento.innerText = state.atas.filter(a => a.statusFinanceiro === 'Pendente pagamento Cobra').length;
       kpiConcluido.innerText = state.atas.filter(a => a.status === 'Concluído').length;
     }
 
@@ -1492,6 +1580,43 @@
           
           formStatusVal.value = "Concluído";
         }
+        else if (mode === 'workflow_concluir') {
+          // Concluir na Junta (V2)
+          modalTitle.innerText = "Concluir na Junta";
+          setInputsReadOnly(true);
+          groupAtaAssinada.classList.add('hidden');
+          groupProtocolo.classList.remove('hidden');
+          formProtocolo.setAttribute('readonly', true);
+          formStatusVal.value = "Concluído";
+        }
+        else if (mode === 'fin_lancar') {
+          // Lançar NF/Reembolso a qualquer momento (V2) — NÃO mexe no status da Junta
+          modalTitle.innerText = "Lançar NF / Reembolso";
+          setInputsReadOnly(true);
+          groupAtaAssinada.classList.add('hidden');
+          dividerFinanceiro.classList.remove('hidden');
+          groupFinanceiroValores.classList.remove('hidden');
+          groupNotaFiscal.classList.remove('hidden');
+          groupComprovanteDespesa.classList.remove('hidden');
+          formReembolso.required = true;
+          formHonorarios.required = true;
+          fileInputs.notaFiscal.input.required = true;
+          formStatusVal.value = ata.status;
+        }
+        else if (mode === 'fin_pagar') {
+          // Cobra confirma o pagamento (V2) — NÃO mexe no status da Junta
+          modalTitle.innerText = "Confirmar Pagamento";
+          setInputsReadOnly(true);
+          groupAtaAssinada.classList.add('hidden');
+          dividerFinanceiro.classList.remove('hidden');
+          groupFinanceiroValores.classList.remove('hidden');
+          groupNotaFiscal.classList.remove('hidden');
+          groupComprovanteDespesa.classList.remove('hidden');
+          formReembolso.setAttribute('readonly', true);
+          formHonorarios.setAttribute('readonly', true);
+          fileInputs.comprovante.input.required = true;
+          formStatusVal.value = ata.status;
+        }
         else if (mode === 'edit_admin') {
           // Correção Completa / Modo Admin
           modalTitle.innerText = "Ajustes Administrador";
@@ -1621,8 +1746,13 @@
 
         const oldAta = state.atas.find(a => a.id === id) || {};
         
+        // V2: status financeiro conforme a ação (senão preserva o existente)
+        let statusFinanceiro = oldAta.statusFinanceiro || "";
+        if (formMode.value === 'fin_lancar') statusFinanceiro = "Custos lançados";
+        else if (formMode.value === 'fin_pagar') statusFinanceiro = "Pago";
+
         const ataData = {
-          id, empresa, descricao, dataEnvio: data, status,
+          id, empresa, descricao, dataEnvio: data, status, statusFinanceiro,
           arquivoAssinada: fileInputs.assinada.value,
           urlAssinada: urlAssinada || oldAta.urlAssinada || "",
           protocolo: protocoloVal,
@@ -2054,6 +2184,9 @@
           hideLoading();
           if (res && res.sucesso) {
             console.log("Sessão validada para:", res.email);
+            state.role = res.permissao || 'admin';
+            state.email = res.email || '';
+            applyRoleVisibility();
             hideLoginOverlay();
             loadData();
             loadSpreadsheetLink();
@@ -2132,6 +2265,9 @@
           submitBtn.innerText = 'Entrar no Sistema';
           if (res && res.sucesso) {
             safeStorage.setItem('SGAS_SessionToken', res.token);
+            state.role = res.permissao || 'admin';
+            state.email = email;
+            applyRoleVisibility();
             statusDiv.className = 'login-status-msg success';
             statusDiv.innerText = '🔑 Login realizado com sucesso! Carregando painel...';
             
@@ -2177,6 +2313,146 @@
             console.log("Sessão removida do servidor.");
           })
           .removeSessionToken(sessionToken);
+      }
+    }
+
+    // ===== V2: Financeiro — pedir pagamento (ação rápida do despachante) =====
+    window.marcarPendentePagamento = function(id) {
+      if (!confirm(`Marcar a ata ${id} como "Pendente de pagamento pela Cobra"?`)) return;
+      showLoading("Atualizando financeiro...");
+      if (state.isGoogleAppsScript) {
+        google.script.run
+          .withSuccessHandler(function() { loadData(); })
+          .withFailureHandler(function(err) { alert("Erro: " + err.message); hideLoading(); })
+          .setStatusFinanceiro(id, "Pendente pagamento Cobra");
+      } else {
+        const ata = state.atas.find(a => a.id === id);
+        if (ata) ata.statusFinanceiro = "Pendente pagamento Cobra";
+        saveLocalStorage(); renderAll(); hideLoading();
+      }
+    };
+
+    // ===== V2: Conversa de Pendência Cobra =====
+    let pendenciaFile = { value: "", base64: "" };
+    let pendenciaAtaAtual = null;
+
+    function setupPendencia() {
+      const modal = document.getElementById('pendencia-modal');
+      document.getElementById('btn-close-pendencia').addEventListener('click', () => modal.classList.remove('active'));
+
+      document.getElementById('pendencia-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const ata = state.atas.find(a => a.id === pendenciaAtaAtual);
+        // Se ainda não está pendente, a 1ª mensagem ABRE a pendência; senão, é resposta.
+        enviarPendencia(ata && ata.status === 'Pendência Cobra' ? 'responder' : 'abrir');
+      });
+
+      document.getElementById('btn-resolver-pendencia').addEventListener('click', () => enviarPendencia('resolver'));
+
+      const inp = document.getElementById('file-pendencia');
+      const dz = document.getElementById('dropzone-pendencia');
+      dz.addEventListener('click', (e) => { if (!e.target.closest('.file-preview')) inp.click(); });
+      inp.addEventListener('click', (e) => e.stopPropagation());
+      inp.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+          const f = e.target.files[0];
+          pendenciaFile.value = f.name;
+          document.getElementById('name-pendencia').innerText = f.name;
+          document.getElementById('preview-pendencia').classList.remove('hidden');
+          dz.querySelector('.file-icon').classList.add('hidden');
+          dz.querySelector('.dropzone-text').classList.add('hidden');
+          const r = new FileReader();
+          r.onload = (ev) => pendenciaFile.base64 = ev.target.result;
+          r.readAsDataURL(f);
+        }
+      });
+      document.getElementById('remove-pendencia').addEventListener('click', (e) => {
+        e.stopPropagation();
+        pendenciaFile = { value: "", base64: "" };
+        inp.value = "";
+        document.getElementById('preview-pendencia').classList.add('hidden');
+        dz.querySelector('.file-icon').classList.remove('hidden');
+        dz.querySelector('.dropzone-text').classList.remove('hidden');
+      });
+    }
+
+    window.openPendenciaModal = function(id) {
+      pendenciaAtaAtual = id;
+      pendenciaFile = { value: "", base64: "" };
+      const ata = state.atas.find(a => a.id === id);
+      const modal = document.getElementById('pendencia-modal');
+
+      document.getElementById('pendencia-ata-id').value = id;
+      document.getElementById('pendencia-msg').value = "";
+      document.getElementById('preview-pendencia').classList.add('hidden');
+      const dz = document.getElementById('dropzone-pendencia');
+      dz.querySelector('.file-icon').classList.remove('hidden');
+      dz.querySelector('.dropzone-text').classList.remove('hidden');
+
+      const isPending = ata && ata.status === 'Pendência Cobra';
+      document.getElementById('pendencia-title').innerText = `Pendência Cobra — Ata ${id}`;
+      document.getElementById('pendencia-msg-label').innerText = isPending ? 'Escreva uma resposta' : 'Descreva a pendência';
+      document.getElementById('btn-enviar-pendencia').innerText = isPending ? 'Responder' : 'Abrir pendência';
+      document.getElementById('btn-resolver-pendencia').style.display = isPending ? 'inline-flex' : 'none';
+
+      modal.classList.add('active');
+      carregarConversa(id);
+    };
+
+    function carregarConversa(id) {
+      const box = document.getElementById('pendencia-conversa');
+      box.innerHTML = '<div class="conversa-vazia">Carregando conversa…</div>';
+      if (state.isGoogleAppsScript) {
+        google.script.run
+          .withSuccessHandler(renderConversa)
+          .withFailureHandler(() => { box.innerHTML = '<div class="conversa-vazia">Não foi possível carregar a conversa.</div>'; })
+          .getPendencias(id);
+      } else {
+        renderConversa([]);
+      }
+    }
+
+    function renderConversa(msgs) {
+      const box = document.getElementById('pendencia-conversa');
+      if (!msgs || msgs.length === 0) {
+        box.innerHTML = '<div class="conversa-vazia">Nenhuma mensagem ainda. Descreva a pendência abaixo.</div>';
+        return;
+      }
+      box.innerHTML = msgs.map(m => {
+        const ehCobra = (m.papel || '').toLowerCase() === 'cobra';
+        const anexo = m.arquivo
+          ? `<div class="msg-anexo"><a class="file-link-btn" href="${m.urlArquivo || '#'}" target="_blank"><span class="material-icons-round" style="font-size:11px;">attach_file</span> ${m.arquivo}</a></div>`
+          : '';
+        return `
+          <div class="msg-bolha ${ehCobra ? 'msg-cobra' : 'msg-despachante'}">
+            <div class="msg-topo"><strong>${m.papel || 'Mensagem'}${m.autor ? ' · ' + m.autor : ''}</strong><span>${m.dataHora}</span></div>
+            ${m.mensagem ? `<div class="msg-texto">${m.mensagem}</div>` : ''}
+            ${anexo}
+          </div>`;
+      }).join('');
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function enviarPendencia(acao) {
+      const id = pendenciaAtaAtual;
+      const mensagem = document.getElementById('pendencia-msg').value.trim();
+      if (acao !== 'resolver' && !mensagem && !pendenciaFile.value) {
+        alert('Escreva uma mensagem ou anexe um documento.');
+        return;
+      }
+      const papel = (state.role === 'despachante') ? 'Despachante' : 'Cobra';
+      showLoading('Enviando...');
+      if (state.isGoogleAppsScript) {
+        google.script.run
+          .withSuccessHandler(function() {
+            document.getElementById('pendencia-modal').classList.remove('active');
+            loadData();
+          })
+          .withFailureHandler(function(err) { alert('Erro: ' + err.message); hideLoading(); })
+          .postPendencia({ ataId: id, autor: state.email || '', papel: papel, mensagem: mensagem, arquivoNome: pendenciaFile.value, base64: pendenciaFile.base64, acao: acao });
+      } else {
+        document.getElementById('pendencia-modal').classList.remove('active');
+        hideLoading();
       }
     }
 

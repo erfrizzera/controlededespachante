@@ -25,16 +25,20 @@ faz sozinho. O GitHub Pages entra como **moldura / porta de entrada (Opção 2)*
 devolve a "tela" para o Pages e mantém o motor como **peça única**. Decisão tomada por
 **intervenção mínima**: um motor só para manter, sem CORS nem deploy duplo.
 
-## Domínio: pipeline de 5 etapas
+## Domínio (V2): duas trilhas + perfis
 
-`Enviado → Em Protocolo → Registrada → Aguardando Pagamento → Concluído`
-(+ o toggle especial **"Pendência Cobra"**, que congela o registro e depois volta ao
-status anterior)
+- **Processo na Junta:** `Enviado → Em Protocolo → Registrada → Concluído`
+  (+ o toggle **"Pendência Cobra"**, que congela e depois volta ao status anterior — agora
+  com conversa e anexos numa aba `Pendencias`).
+- **Financeiro (trilha separada, independente da Junta):** `— → Custos lançados →
+  Pendente pagamento Cobra → Pago`. Permite cobrar NF/reembolso antes do fim na Junta.
+- **Perfis (coluna Permissão da aba `Usuarios`):** `admin` (tudo), `cobra` (sem E-mails,
+  Sheets, Correção Manual, Excluir) e `despachante` (também sem Cadastrar e Drive Geral).
 
-## Modelo de dados (aba `Atas`, 16 colunas)
+## Modelo de dados (aba `Atas`, 17 colunas)
 
 Identificação: `ID` (sequencial 0001…), `Empresa` (lista fixa de empresas do grupo),
-`Descrição`, `Data de Envio`, `Status`, `Status Anterior`.
+`Descrição`, `Data de Envio`, `Status`, `Status Anterior`, `Status Financeiro`.
 Documentos (PDF no Drive; a célula guarda o link): `Ata Assinada`, `Ata Registrada`,
 `Nota Fiscal`, `Comprovante de Despesa`, `Pasta no Drive`.
 Protocolo: `Número do Protocolo`, `Data do Protocolo` (automática).
@@ -73,14 +77,14 @@ Controle de Despachante/
     └── App.html         ← a tela do app (servida pelo doGet)
 ```
 
-## Status da construção
+## Status
 
-**Sistema completo (v0.9.0), aguardando o 1º deploy para virar 1.0.0.**
-Etapas: fundação ✅ · motor de dados ✅ · tela do app ✅ · Drive/upload ✅ · e-mail ✅ ·
-autenticação (senha) ✅ · **deploy ⬅️ próximo** (ver `docs/GUIA_DEPLOY.md`).
+**V2.0.0 no ar (2026-07-01).** Endereço: https://erfrizzera.github.io/controlededespachante/
+Produção (implantação Apps Script `AKfycbz8Fq…`) reimplantada na **versão 2**; moldura e URL inalteradas.
 
-- A interface (`App.html`) foi **portada** do projeto de referência (UI já validada).
-- O motor (`Codigo.gs`) foi **reescrito do zero**, limpo, na Flufa.
-- Correção feita na migração: o ID sequencial agora é **reservado no servidor** antes do
-  upload (`reservarProximoId`), evitando a pasta órfã no Drive que a referência criava.
-- Pendência conhecida: senha em texto puro na aba `Usuarios` — revisitar (magic link ou hash).
+- **V1:** motor reescrito do zero + interface portada (`App.html`) + moldura no GitHub Pages.
+  Correção: ID sequencial **reservado no servidor** (`reservarProximoId`) evita pasta órfã.
+- **V2:** perfis (admin/cobra/despachante), trilha financeira separada (coluna `Status
+  Financeiro`), pendência com **conversa** (aba `Pendencias`; anexos vão pra pasta da ata).
+- Segurança por perfil é **na tela** (esconde botões). Endurecer no backend fica pra depois,
+  junto da pendência da **senha em texto puro** na aba `Usuarios`.
