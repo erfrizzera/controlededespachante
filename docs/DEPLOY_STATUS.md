@@ -32,8 +32,17 @@ de consentimento do Google que **só o dono da conta** pode aprovar no navegador
    *(Mantenha "Executar como: Eu".)* A URL do /exec continua a mesma.
 4. Me avise — eu testo a URL de novo e confirmo que abriu a tela de login do sistema.
 
-## Depois disso: a moldura (GitHub Pages)
+## ✅ Moldura (GitHub Pages) — no ar
 
-Falta publicar o `index.html` no GitHub Pages (precisa da sua conta GitHub — não há `gh` CLI
-nesta máquina). Repo local já preparado (git init + commit). Passos em `GUIA_DEPLOY.md`,
-Parte 2. Como a URL do app já está na moldura, é só subir e ligar o Pages.
+- Repositório: https://github.com/erfrizzera/controlededespachante
+- **Endereço do sistema:** https://erfrizzera.github.io/controlededespachante/
+- Pages ligado via API (source: `main` / root), build concluído e verificado (HTTP 200).
+
+## Estado final
+
+Tudo publicado e verificado no servidor em 2026-07-01. Falta só o passo de **dados**:
+cadastrar quem acessa na aba `Usuarios` da planilha (o login exige e-mail+senha lá).
+
+Opcional: em **Configurações do projeto → Propriedades do script**, criar
+`SYSTEM_URL = https://erfrizzera.github.io/controlededespachante/` para os e-mails
+automáticos apontarem para o endereço bonito (sem isso, apontam para a URL /exec do Google).
