@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "2.0.0",
   "atualizadoEm": "2026-07-01",
-  "nota": "1ª versão no ar: motor (Apps Script) + moldura (GitHub Pages) publicados e verificados."
+  "nota": "V2: perfis (admin/cobra/despachante), trilha financeira separada, pendência com conversa."
 }
