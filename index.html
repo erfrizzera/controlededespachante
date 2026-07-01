@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Controle Despachante | Cobra Brasil</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #f8fafc; font-family: system-ui, -apple-system, sans-serif; }
+    #app-frame { border: 0; width: 100%; height: 100%; display: block; }
+    #carregando { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 14px; }
+    #selo-versao { position: fixed; right: 10px; bottom: 8px; font-size: 10px; color: #94a3b8; background: rgba(255,255,255,.7); padding: 2px 8px; border-radius: 10px; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <!-- Esta página é só a MOLDURA. Ela vive no GitHub Pages e abre o app do Apps
+       Script dentro dela, em tela cheia. Assim o endereço fica bonito e a URL
+       gigante do Google fica escondida dentro do iframe. -->
+
+  <div id="carregando">Abrindo o sistema…</div>
+
+  <iframe id="app-frame" title="Controle Despachante" src=""
+          onload="document.getElementById('carregando').style.display='none'"></iframe>
+
+  <div id="selo-versao"></div>
+
+  <script>
+    // URL do Web App do Apps Script (preenchida no deploy de 2026-07-01).
+    var APP_URL = "https://script.google.com/macros/s/AKfycbz8FqcbL2DqwkqUH0vmoJ503Vui7G7wwD718-QZrGpVeSUXzNgSPN2g5JG9FrgWeMnF/exec";
+
+    if (APP_URL) {
+      document.getElementById('app-frame').src = APP_URL;
+    } else {
+      document.getElementById('carregando').textContent =
+        "Falta configurar a URL do app em index.html (variável APP_URL).";
+    }
+
+    // Selo de versão: lê version.json e FALHA EM SILÊNCIO (regra da Flufa —
+    // um detalhe visual nunca derruba o app).
+    fetch('version.json')
+      .then(function (r) { return r.json(); })
+      .then(function (v) { document.getElementById('selo-versao').textContent = 'v' + v.version; })
+      .catch(function () { /* silêncio proposital */ });
+  </script>
+</body>
+</html>

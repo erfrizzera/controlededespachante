@@ -1,0 +1,2187 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Controle Despachante | Cobra Brasil</title>
+  <meta name="description" content="Interface única e centralizada para gerenciar o ciclo de vida das atas societárias da Cobra Brasil.">
+  
+  <!-- Fontes Premium -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Material Icons -->
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+  
+  <style>
+    /* ==========================================================================
+       DESIGN SYSTEM - CONTROLE DESPACHANTE (TEMA ESCURO E CLARO)
+       ========================================================================== */
+    :root {
+      --font-family-primary: 'Outfit', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      
+      /* Variáveis do Tema Escuro (Padrão) */
+      --bg-app: #090d16;
+      --bg-sidebar: #0f1524;
+      --bg-card: #141b2d;
+      --bg-card-hover: #1e2640;
+      --bg-input: #1b2234;
+      --border-color: #212c47;
+      --border-focus: #3b82f6;
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      
+      --color-primary: #2563eb;
+      --color-primary-hover: #1d4ed8;
+      --color-success: #10b981;
+      --color-success-hover: #059669;
+      --color-warning: #eab308;
+      --color-orange: #f97316;
+      --color-danger: #ef4444;
+      --color-danger-hover: #dc2626;
+      
+      --status-enviado: #3b82f6;
+      --status-protocolo: #eab308;
+      --status-registrada: #10b981;
+      --status-pagamento: #f97316;
+      --status-concluido: #84cc16;
+      
+      --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.2);
+      --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+      --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.4);
+      --shadow-primary: 0 4px 14px rgba(37, 99, 235, 0.3);
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      
+      --transition-fast: 0.2s ease;
+      --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Sobrescrita de Variáveis para o Tema Claro */
+    body.light-theme {
+      --bg-app: #f8fafc;
+      --bg-sidebar: #ffffff;
+      --bg-card: #f1f5f9;
+      --bg-card-hover: #e2e8f0;
+      --bg-input: #ffffff;
+      --border-color: #cbd5e1;
+      --border-focus: #2563eb;
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #94a3b8;
+      
+      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-family-primary);
+      background-color: var(--bg-app);
+      color: var(--text-primary);
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      transition: background-color var(--transition-normal), color var(--transition-normal);
+    }
+    button, input, select, textarea { font-family: inherit; color: inherit; }
+    
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-app); }
+    ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+    .app-container { display: flex; width: 100vw; height: 100vh; }
+    
+    /* Sidebar */
+    .sidebar {
+      width: 250px;
+      background-color: var(--bg-sidebar);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      padding: 24px 16px;
+      flex-shrink: 0;
+      transition: width var(--transition-normal), padding var(--transition-normal), border-color var(--transition-normal), opacity var(--transition-normal);
+      overflow-x: hidden;
+    }
+    
+    /* Collapsed Sidebar State */
+    .sidebar-collapsed .sidebar {
+      width: 0;
+      padding-left: 0;
+      padding-right: 0;
+      border-right: none;
+      opacity: 0;
+      pointer-events: none;
+    }
+    
+    .sidebar > * {
+      min-width: 218px;
+      transition: opacity var(--transition-fast);
+    }
+    
+    .sidebar-collapsed .sidebar > * {
+      opacity: 0;
+    }
+
+    .sidebar-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; padding: 0 8px; position: relative; }
+    .brand-icon { font-size: 25px; color: var(--color-primary); }
+    .brand-text h1 { font-size: 15px; font-weight: 700; }
+    .brand-text span { font-size: 9px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1.5px; }
+    
+    .btn-collapse {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px;
+      border-radius: var(--radius-sm);
+      transition: var(--transition-fast);
+      margin-left: auto;
+    }
+    .btn-collapse:hover {
+      background-color: var(--bg-card-hover);
+      color: var(--text-primary);
+    }
+    .btn-collapse span {
+      font-size: 17px;
+    }
+
+    .btn-expand {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-primary);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 8px;
+      border-radius: 50%;
+      transition: var(--transition-fast);
+      margin-right: 16px;
+    }
+    .btn-expand:hover {
+      background-color: var(--bg-card-hover);
+    }
+    .btn-expand span {
+      font-size: 21px;
+    }
+    
+    .sidebar-collapsed .btn-expand {
+      display: inline-flex;
+    }
+    
+    .sidebar-menu { display: flex; flex-direction: column; gap: 8px; flex-grow: 1; }
+    .menu-item {
+      display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+      color: var(--text-secondary); text-decoration: none; border-radius: var(--radius-md);
+      font-weight: 500; transition: var(--transition-fast);
+    }
+    .menu-item span { font-size: 17px; }
+    .menu-item:hover, .menu-item.active { background-color: var(--bg-card-hover); color: var(--text-primary); }
+    .menu-item.active {
+      border-left: 3px solid var(--color-primary);
+      border-radius: 0 var(--radius-md) var(--radius-md) 0;
+      padding-left: 13px;
+      background: linear-gradient(90deg, rgba(37, 99, 235, 0.08) 0%, rgba(30, 38, 64, 0.1) 100%);
+    }
+
+    .sidebar-footer {
+      border-top: 1px solid var(--border-color);
+      padding-top: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: auto;
+    }
+    .version-label { font-size: 9px; font-weight: 600; color: var(--text-muted); }
+
+    /* Main Content */
+    .main-content {
+      flex-grow: 1; display: flex; flex-direction: column; height: 100vh; overflow-y: auto;
+      background: radial-gradient(circle at top right, rgba(30, 41, 59, 0.1) 0%, var(--bg-app) 70%);
+      transition: background-color var(--transition-normal);
+    }
+    .top-header {
+      height: 70px; padding: 0 32px; border-bottom: 1px solid var(--border-color);
+      display: flex; align-items: center; justify-content: space-between;
+      background-color: rgba(15, 21, 36, 0.4); backdrop-filter: blur(10px);
+      position: sticky; top: 0; z-index: 10;
+      transition: border-color var(--transition-normal);
+    }
+    body.light-theme .top-header { background-color: rgba(255, 255, 255, 0.8); }
+
+    .header-search {
+      display: flex; align-items: center; gap: 10px; background-color: var(--bg-input);
+      border: 1px solid var(--border-color); border-radius: 30px; padding: 6px 16px; width: 350px;
+    }
+    .header-search input { background: none; border: none; outline: none; width: 100%; font-size: 11px; color: var(--text-primary); }
+    .search-icon { color: var(--text-secondary); font-size: 17px; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 10px 18px; font-size: 10px; font-weight: 600; border-radius: var(--radius-md);
+      border: none; cursor: pointer; transition: var(--transition-fast);
+    }
+    .btn-primary { background-color: var(--color-primary); color: #fff; box-shadow: var(--shadow-primary); }
+    .btn-primary:hover { background-color: var(--color-primary-hover); transform: translateY(-1px); }
+    
+    .btn-success { background-color: var(--color-success); color: #fff; }
+    .btn-success:hover { background-color: var(--color-success-hover); }
+
+    .btn-secondary { background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color); }
+    .btn-secondary:hover { background-color: var(--bg-card-hover); border-color: var(--text-secondary); }
+    
+    /* Action badges direct on table rows */
+    .btn-workflow-action {
+      padding: 6px 12px; font-size: 9px; font-weight: 700; border-radius: 20px; border: none; cursor: pointer;
+      text-transform: uppercase; letter-spacing: 0.5px; transition: var(--transition-fast); display: inline-flex; align-items: center; gap: 4px;
+    }
+    .action-btn-enviado { background-color: rgba(234, 179, 8, 0.15); color: var(--color-warning); border: 1px solid rgba(234, 179, 8, 0.3); }
+    .action-btn-enviado:hover { background-color: var(--color-warning); color: #000; }
+    
+    .action-btn-protocolo { background-color: rgba(16, 185, 129, 0.15); color: var(--color-success); border: 1px solid rgba(16, 185, 129, 0.3); }
+    .action-btn-protocolo:hover { background-color: var(--color-success); color: #fff; }
+    
+    .action-btn-registrada { background-color: rgba(249, 115, 22, 0.15); color: var(--color-orange); border: 1px solid rgba(249, 115, 22, 0.3); }
+    .action-btn-registrada:hover { background-color: var(--color-orange); color: #fff; }
+    
+    .action-btn-pagamento { background-color: rgba(59, 130, 246, 0.15); color: var(--status-enviado); border: 1px solid rgba(59, 130, 246, 0.3); }
+    .action-btn-pagamento:hover { background-color: var(--status-enviado); color: #fff; }
+
+    /* System Indicator Banner */
+    .system-mode-banner {
+      background-color: #1e3a8a; color: #93c5fd; padding: 8px 32px; font-size: 9px;
+      font-weight: 600; display: flex; align-items: center; justify-content: space-between;
+    }
+    .system-mode-banner.local-mode { background-color: #475569; color: #cbd5e1; }
+
+    /* Content Body */
+    .content-body { padding: 32px; display: flex; flex-direction: column; gap: 32px; animation: fadeIn 0.4s ease; }
+    .hidden { display: none !important; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* KPI Grid */
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; }
+    .kpi-card {
+      background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg);
+      padding: 20px; display: flex; align-items: center; gap: 16px; cursor: pointer; transition: var(--transition-normal);
+    }
+    .kpi-card:hover { transform: translateY(-3px); background-color: var(--bg-card-hover); box-shadow: var(--shadow-md); }
+    .kpi-icon { width: 48px; height: 48px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; }
+    .kpi-icon span { font-size: 21px; }
+    .kpi-icon.total { background-color: rgba(59, 130, 246, 0.15); color: var(--status-enviado); }
+    .kpi-icon.protocolo { background-color: rgba(234, 179, 8, 0.15); color: var(--status-protocolo); }
+    .kpi-icon.pagamento { background-color: rgba(249, 115, 22, 0.15); color: var(--status-pagamento); }
+    .kpi-icon.concluido { background-color: rgba(132, 204, 22, 0.15); color: var(--status-concluido); }
+    .kpi-info { display: flex; flex-direction: column; }
+    .kpi-label { font-size: 10px; color: var(--text-secondary); }
+    .kpi-value { font-size: 19px; font-weight: 700; margin-top: 2px; }
+
+    /* Table */
+    .data-section {
+      background-color: var(--bg-sidebar); border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg); padding: 24px; display: flex; flex-direction: column; gap: 20px;
+    }
+    .section-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+    .section-header h2 { font-size: 15px; font-weight: 600; }
+    .filters-bar { display: flex; gap: 12px; }
+    .select-filter {
+      background-color: var(--bg-input); border: 1px solid var(--border-color); color: var(--text-primary);
+      padding: 8px 16px; border-radius: var(--radius-md); font-size: 10px; outline: none; cursor: pointer;
+    }
+    
+    .table-container { overflow-x: auto; }
+    .data-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 11px; }
+    .data-table th { padding: 14px 16px; font-weight: 600; color: var(--text-secondary); border-bottom: 2px solid var(--border-color); background-color: rgba(15, 21, 36, 0.2); }
+    body.light-theme .data-table th { background-color: rgba(0, 0, 0, 0.02); }
+    .data-table td { padding: 16px; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
+    .data-table tbody tr:hover { background-color: rgba(26, 38, 64, 0.15); }
+    body.light-theme .data-table tbody tr:hover { background-color: rgba(0, 0, 0, 0.02); }
+    .company-cell { font-weight: 600; }
+    .desc-cell { max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .price-text { font-family: monospace; font-weight: 600; }
+    
+    /* Files direct download container */
+    .files-list-cell { display: flex; flex-direction: column; gap: 4px; }
+    .file-link-btn {
+      display: inline-flex; align-items: center; gap: 6px; color: var(--color-primary);
+      text-decoration: none; font-size: 10px; font-weight: 600; transition: var(--transition-fast);
+    }
+    .file-link-btn:hover { color: #60a5fa; text-decoration: underline; }
+    body.light-theme .file-link-btn:hover { color: #1d4ed8; }
+
+    /* Badges */
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px; font-size: 9px; font-weight: 700; text-transform: uppercase; }
+    .badge-enviado { background-color: rgba(59, 130, 246, 0.12); color: var(--status-enviado); border: 1px solid rgba(59, 130, 246, 0.25); }
+    .badge-protocolo { background-color: rgba(234, 179, 8, 0.12); color: var(--status-protocolo); border: 1px solid rgba(234, 179, 8, 0.25); }
+    .badge-registrada { background-color: rgba(16, 185, 129, 0.12); color: var(--status-registrada); border: 1px solid rgba(16, 185, 129, 0.25); }
+    .badge-pagamento { background-color: rgba(249, 115, 22, 0.12); color: var(--status-pagamento); border: 1px solid rgba(249, 115, 22, 0.25); }
+    .badge-concluido { background-color: rgba(132, 204, 22, 0.12); color: var(--status-concluido); border: 1px solid rgba(132, 204, 22, 0.25); }
+    .badge-pendencia { background-color: rgba(239, 68, 68, 0.12); color: var(--color-danger); border: 1px solid rgba(239, 68, 68, 0.25); }
+    .btn-icon.pending-active { background-color: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); }
+    .btn-icon.pending-active:hover { background-color: rgba(239, 68, 68, 0.25); }
+
+    .action-group { display: flex; gap: 8px; align-items: center; }
+    .btn-icon {
+      width: 32px; height: 32px; border-radius: var(--radius-sm); border: none; background-color: var(--bg-input);
+      color: var(--text-secondary); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: var(--transition-fast);
+    }
+    .btn-icon:hover { background-color: var(--bg-card-hover); color: var(--text-primary); }
+    .btn-icon.edit:hover { color: var(--color-primary); }
+    .btn-icon.delete:hover { color: var(--color-danger); }
+    .no-data-msg { display: flex; flex-direction: column; align-items: center; padding: 48px; color: var(--text-muted); gap: 12px; }
+    .no-data-msg span { font-size: 37px; }
+
+    /* Modal / Slide over */
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(4, 6, 10, 0.7);
+      backdrop-filter: blur(4px); z-index: 100; display: flex; justify-content: flex-end; opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+    }
+    .modal-overlay.active { opacity: 1; pointer-events: all; }
+    .modal-container {
+      width: 480px; height: 100%; background-color: var(--bg-sidebar); border-left: 1px solid var(--border-color);
+      box-shadow: var(--shadow-lg); display: flex; flex-direction: column; transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); padding: 32px;
+    }
+    .modal-overlay.active .modal-container { transform: translateX(0); }
+    .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; border-bottom: 1px solid var(--border-color); padding-bottom: 16px; }
+    .modal-header h3 { font-size: 17px; font-weight: 700; }
+    .btn-close { background: none; border: none; color: var(--text-secondary); cursor: pointer; display: flex; }
+    .btn-close:hover { color: var(--text-primary); }
+
+    .modal-form { display: flex; flex-direction: column; gap: 20px; flex-grow: 1; overflow-y: auto; padding-right: 4px; }
+    .form-group { display: flex; flex-direction: column; gap: 8px; }
+    .form-group label { font-size: 10px; font-weight: 600; color: var(--text-secondary); }
+    .form-control { background-color: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px 16px; color: var(--text-primary); font-size: 11px; outline: none; }
+    .form-control:focus { border-color: var(--border-focus); }
+    .form-control[readonly] { background-color: rgba(27, 34, 52, 0.4); color: var(--text-muted); cursor: not-allowed; }
+    body.light-theme .form-control[readonly] { background-color: #e2e8f0; }
+    .form-row { display: flex; gap: 16px; }
+    .col-6 { width: 50%; }
+    .form-section-divider { font-size: 9px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-top: 12px; }
+    
+    .pipeline-selector { display: flex; flex-wrap: wrap; gap: 8px; }
+    .pipeline-btn { border: 1px solid var(--border-color); background-color: var(--bg-input); color: var(--text-secondary); padding: 6px 12px; border-radius: 20px; font-size: 9px; font-weight: 600; cursor: pointer; }
+    .pipeline-btn.active[data-status="Enviado"] { background-color: rgba(59, 130, 246, 0.2); color: var(--status-enviado); border-color: var(--status-enviado); }
+    .pipeline-btn.active[data-status="Em Protocolo"] { background-color: rgba(234, 179, 8, 0.2); color: var(--status-protocolo); border-color: var(--status-protocolo); }
+    .pipeline-btn.active[data-status="Registrada"] { background-color: rgba(16, 185, 129, 0.2); color: var(--status-registrada); border-color: var(--status-registrada); }
+    .pipeline-btn.active[data-status="Aguardando Pagamento"] { background-color: rgba(249, 115, 22, 0.2); color: var(--status-pagamento); border-color: var(--status-pagamento); }
+    .pipeline-btn.active[data-status="Concluído"] { background-color: rgba(132, 204, 22, 0.2); color: var(--status-concluido); border-color: var(--status-concluido); }
+
+    .file-dropzone { border: 2px dashed var(--border-color); background-color: rgba(27, 34, 52, 0.2); border-radius: var(--radius-lg); padding: 20px; text-align: center; cursor: pointer; position: relative; }
+    .file-dropzone:hover { border-color: var(--border-focus); background-color: rgba(27, 34, 52, 0.4); }
+    .file-icon { font-size: 29px; color: var(--text-muted); margin-bottom: 8px; }
+    .dropzone-text { font-size: 9px; color: var(--text-secondary); }
+    .hidden-file-input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+    .file-preview { display: flex; align-items: center; gap: 12px; background-color: var(--bg-card); padding: 10px 14px; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-top: 8px; text-align: left; }
+    .preview-icon { color: var(--color-primary); font-size: 21px; }
+    .file-name { font-size: 10px; font-weight: 500; flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .btn-remove-file { background: none; border: none; color: var(--color-danger); cursor: pointer; display: flex; }
+    .modal-footer { margin-top: auto; border-top: 1px solid var(--border-color); padding-top: 20px; display: flex; gap: 12px; justify-content: flex-end; }
+
+    /* Drive Explorer */
+    .drive-explorer { display: flex; background-color: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: var(--radius-lg); min-height: 400px; overflow: hidden; }
+    .drive-sidebar { width: 200px; border-right: 1px solid var(--border-color); padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+    .drive-folder { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: var(--radius-md); color: var(--text-secondary); font-size: 11px; font-weight: 500; cursor: pointer; }
+    .drive-folder:hover, .drive-folder.active { background-color: var(--bg-card-hover); color: var(--text-primary); }
+    .drive-folder.active { border-left: 3px solid var(--color-primary); border-radius: 0 var(--radius-md) var(--radius-md) 0; padding-left: 11px; }
+    .drive-content { flex-grow: 1; padding: 24px; overflow-y: auto; }
+    .drive-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
+    .drive-file-card { background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 16px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; cursor: pointer; transition: var(--transition-fast); }
+    .drive-file-card:hover { transform: translateY(-2px); border-color: var(--text-secondary); background-color: var(--bg-card-hover); }
+    .drive-file-card span.file-icon { font-size: 37px; color: var(--color-primary); }
+    .drive-file-card .file-title { font-size: 9px; font-weight: 600; max-height: 36px; overflow: hidden; text-overflow: ellipsis; word-break: break-all; }
+    .drive-file-card .file-meta { font-size: 9px; color: var(--text-muted); }
+
+    /* Loading Overlay */
+    .loading-overlay {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(4, 6, 10, 0.85);
+      z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+      opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+    }
+    .loading-overlay.active { opacity: 1; pointer-events: all; }
+    .spinner { width: 50px; height: 50px; border: 4px solid var(--border-color); border-top: 4px solid var(--color-primary); border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .loading-text { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+
+    /* Login Screen Overlay */
+    .login-overlay {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background-color: var(--bg-app);
+      z-index: 999; display: flex; align-items: center; justify-content: center; padding: 20px;
+    }
+    .login-card {
+      width: 100%; max-width: 400px; background-color: var(--bg-card);
+      border: 1px solid var(--border-color); border-radius: var(--radius-lg);
+      padding: 32px; box-shadow: var(--shadow-lg); display: flex; flex-direction: column; gap: 24px;
+    }
+    .login-header { text-align: center; }
+    .login-header h2 { font-size: 20px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }
+    .login-header p { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+    .login-body { display: flex; flex-direction: column; gap: 16px; }
+    .login-btn { width: 100%; display: flex; justify-content: center; align-items: center; padding: 12px; font-weight: 600; cursor: pointer; border-radius: var(--radius-md); border: none; transition: var(--transition-fast); }
+    .login-btn:hover { background-color: var(--color-primary-hover); }
+    .login-status-msg {
+      padding: 12px; border-radius: var(--radius-md); font-size: 11px; font-weight: 500; line-height: 1.4;
+      text-align: center; border: 1px solid transparent;
+    }
+    .login-status-msg.success {
+      background-color: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.2); color: #10b981;
+    }
+    .login-status-msg.danger {
+      background-color: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #ef4444;
+    }
+    .login-status-msg.info {
+      background-color: rgba(59, 130, 246, 0.1); border-color: rgba(59, 130, 246, 0.2); color: #3b82f6;
+    }
+    /* Logout Button in Sidebar */
+    .btn-logout {
+      width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+      background: none; border: none; padding: 10px 14px;
+      color: var(--text-secondary); font-size: 11px; font-weight: 500;
+      border-radius: var(--radius-md); cursor: pointer; transition: var(--transition-fast);
+      margin-top: 8px; border: 1px solid var(--border-color);
+    }
+    .btn-logout:hover { background-color: rgba(239, 68, 68, 0.1); color: #ef4444; border-color: rgba(239, 68, 68, 0.2); }
+  </style>
+</head>
+<body class="light-theme">
+
+  <!-- Loading Screen -->
+  <div class="loading-overlay" id="loading-screen">
+    <div class="spinner"></div>
+    <div class="loading-text" id="loading-text">Conectando ao Google Cloud...</div>
+  </div>
+
+  <!-- Login Screen Overlay -->
+  <div class="login-overlay" id="login-screen" style="display: none;">
+    <div class="login-card">
+      <div class="login-header">
+        <h2>Controle Despachante</h2>
+        <p>Acesso Restrito</p>
+      </div>
+      <div class="login-body">
+        <form id="form-login">
+          <div class="form-group" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
+            <label for="login-email" style="font-size: 11px; font-weight: 500; color: var(--text-secondary);">E-mail Autorizado</label>
+            <input type="email" id="login-email" placeholder="seuemail@exemplo.com" required autocomplete="email" style="padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background-color: var(--bg-input); color: var(--text-primary); font-size: 12px; outline: none; transition: var(--transition-fast);" onfocus="this.style.borderColor='var(--border-focus)'" onblur="this.style.borderColor='var(--border-color)'" />
+          </div>
+          <div class="form-group" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
+            <label for="login-password" style="font-size: 11px; font-weight: 500; color: var(--text-secondary);">Senha de Acesso</label>
+            <input type="password" id="login-password" placeholder="Sua senha" required autocomplete="current-password" style="padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background-color: var(--bg-input); color: var(--text-primary); font-size: 12px; outline: none; transition: var(--transition-fast);" onfocus="this.style.borderColor='var(--border-focus)'" onblur="this.style.borderColor='var(--border-color)'" />
+          </div>
+          <button type="submit" id="btn-request-login" class="btn btn-primary login-btn">
+            Entrar no Sistema
+          </button>
+        </form>
+        <div id="login-status" class="login-status-msg" style="display: none;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-container">
+    
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-text">
+          <h1>Controle Despachante</h1>
+        </div>
+        <button id="btn-collapse-sidebar" class="btn-collapse" title="Recolher Menu">
+          <span class="material-icons-round">chevron_left</span>
+        </button>
+      </div>
+      
+      <nav class="sidebar-menu">
+        <a href="#" class="menu-item active" id="menu-dashboard">
+          <span class="material-icons-round">dashboard</span>
+          Painel Geral
+        </a>
+        <a href="#" class="menu-item" id="menu-drive">
+          <span class="material-icons-round">folder_open</span>
+          Drive Geral
+        </a>
+        <a href="#" class="menu-item" id="menu-settings">
+          <span class="material-icons-round">settings</span>
+          E-mails Notificados
+        </a>
+        <a href="#" class="menu-item hidden" id="link-spreadsheet" target="_blank" title="Abrir Planilha de Dados no Google Sheets">
+          <span class="material-icons-round">description</span>
+          Planilha Sheets
+        </a>
+      </nav>
+
+      <div class="sidebar-footer" style="display: flex; flex-direction: column; gap: 8px;">
+        <button id="btn-logout" class="btn-logout" title="Sair do Sistema">
+          <span class="material-icons-round" style="font-size: 14px;">logout</span>
+          Sair
+        </button>
+        <span class="version-label">Cobra Brasil</span>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      
+
+
+      <!-- Top Header -->
+      <header class="top-header">
+        <button id="btn-expand-sidebar" class="btn-expand" title="Expandir Menu">
+          <span class="material-icons-round">menu</span>
+        </button>
+        <div class="header-search">
+          <span class="material-icons-round search-icon">search</span>
+          <input type="text" id="search-input" placeholder="Pesquisar atas por descrição ou protocolo...">
+        </div>
+        <div class="header-actions">
+          <button id="btn-new-ata" class="btn btn-primary">
+            <span class="material-icons-round">add</span>
+            Cadastrar Envio de Ata
+          </button>
+        </div>
+      </header>
+
+      <!-- View: Dashboard -->
+      <div class="content-body" id="dashboard-view">
+        <section class="kpi-grid">
+          <div class="kpi-card" data-status="Total">
+            <div class="kpi-icon total"><span class="material-icons-round">assignment</span></div>
+            <div class="kpi-info"><span class="kpi-label">Total de Atas</span><h3 class="kpi-value" id="kpi-total">0</h3></div>
+          </div>
+          <div class="kpi-card" data-status="Em Protocolo">
+            <div class="kpi-icon protocolo"><span class="material-icons-round">pending_actions</span></div>
+            <div class="kpi-info"><span class="kpi-label">Em Protocolo</span><h3 class="kpi-value" id="kpi-protocolo">0</h3></div>
+          </div>
+          <div class="kpi-card" data-status="Aguardando Pagamento">
+            <div class="kpi-icon pagamento"><span class="material-icons-round">payments</span></div>
+            <div class="kpi-info"><span class="kpi-label">Aguardando Pgto.</span><h3 class="kpi-value" id="kpi-pagamento">0</h3></div>
+          </div>
+          <div class="kpi-card" data-status="Concluído">
+            <div class="kpi-icon concluido"><span class="material-icons-round">task_alt</span></div>
+            <div class="kpi-info"><span class="kpi-label">Concluídas</span><h3 class="kpi-value" id="kpi-concluido">0</h3></div>
+          </div>
+        </section>
+
+        <section class="data-section">
+          <div class="section-header">
+            <h2>Processamento e Arquivos Societários</h2>
+            <div class="filters-bar">
+              <select id="filter-company" class="select-filter">
+                <option value="">Todas as Empresas</option>
+              </select>
+              <select id="filter-status" class="select-filter">
+                <option value="">Todos os Status</option>
+                <option value="Enviado">Enviado</option>
+                <option value="Em Protocolo">Em Protocolo</option>
+                <option value="Registrada">Registrada</option>
+                <option value="Aguardando Pagamento">Aguardando Pagamento</option>
+                <option value="Concluído">Concluído</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="table-container">
+            <table class="data-table" id="atas-table">
+              <thead>
+                <tr>
+                  <th>Empresa</th>
+                  <th>Descrição</th>
+                  <th>Protocolo</th>
+                  <th>Tempo de Processo</th>
+                  <th>Status</th>
+                  <th>Arquivos</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="atas-tbody"></tbody>
+            </table>
+            <div id="no-data-msg" class="no-data-msg hidden">
+              <span class="material-icons-round">sentiment_dissatisfied</span>
+              <p>Nenhuma ata societária encontrada.</p>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- View: Drive Explorer -->
+      <div class="content-body hidden" id="drive-view">
+        <div class="section-header">
+          <h2>Google Drive - Repositório de Atas</h2>
+          <p>Organização em tempo real das subpastas mapeadas pelo aplicativo.</p>
+        </div>
+        <div class="drive-explorer">
+          <div class="drive-sidebar">
+            <div class="drive-folder active" data-folder="all"><span class="material-icons-round">grid_view</span>Tudo</div>
+            <div class="drive-folder" data-folder="Atas_Assinadas"><span class="material-icons-round">folder</span>Atas_Assinadas/</div>
+            <div class="drive-folder" data-folder="Atas_Registradas"><span class="material-icons-round">folder</span>Atas_Registradas/</div>
+            <div class="drive-folder" data-folder="Notas_Fiscais"><span class="material-icons-round">folder</span>Notas_Fiscais/</div>
+          </div>
+          <div class="drive-content">
+            <div class="drive-grid" id="drive-files-grid"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- View: Settings (E-mails Notificados) -->
+      <div class="content-body hidden" id="settings-view">
+        <div class="section-header" style="flex-direction: column; align-items: flex-start; gap: 8px;">
+          <h2>Configuração de Alertas de E-mail</h2>
+          <p style="color: var(--text-secondary); font-size: 11px;">Gerencie os e-mails destinatários que receberão avisos automáticos de cada transição de status.</p>
+        </div>
+        <div class="data-section" style="max-width: 600px; width: 100%;">
+          <h3>Lista de Contatos Notificados</h3>
+          <div style="margin-top: 16px; display: flex; gap: 12px;">
+            <input type="email" id="new-email-input" class="form-control" style="flex-grow: 1;" placeholder="Adicionar novo e-mail...">
+            <button class="btn btn-primary" id="btn-add-email" onclick="addNotificationEmail()">
+              <span class="material-icons-round">add</span> Adicionar
+            </button>
+          </div>
+          <div style="margin-top: 24px; overflow-x: auto;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th style="text-align: left; padding: 12px 16px;">E-mail</th>
+                  <th style="width: 80px; text-align: center; padding: 12px 16px;">Excluir</th>
+                </tr>
+              </thead>
+              <tbody id="emails-tbody"></tbody>
+            </table>
+            <div id="no-emails-msg" class="no-data-msg hidden" style="padding: 24px;">
+              <p>Nenhum e-mail configurado para receber alertas.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Slide-Over Panel Modal -->
+  <div class="modal-overlay" id="ata-modal">
+    <div class="modal-container">
+      <header class="modal-header">
+        <h3 id="modal-title">Atualizar Registro</h3>
+        <button class="btn-close" id="btn-close-modal"><span class="material-icons-round">close</span></button>
+      </header>
+      <form class="modal-form" id="ata-form">
+        <input type="hidden" id="form-id">
+        
+        <!-- Modo do formulário ('create', 'edit_admin', 'workflow_protocolo', 'workflow_registro', 'workflow_financeiro', 'workflow_pagar') -->
+        <input type="hidden" id="form-mode" value="create">
+
+        <!-- Informações Finais que sempre aparecem de leitura ou cadastro -->
+        <div class="form-group">
+          <label for="form-empresa">Empresa <span class="required">*</span></label>
+          <select id="form-empresa" required class="form-control">
+            <option value="" disabled selected>Selecione a empresa...</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="form-descricao">Descrição da Ata <span class="required">*</span></label>
+          <input type="text" id="form-descricao" required class="form-control" placeholder="Descreva o assunto">
+        </div>
+        <div class="form-group hidden">
+          <label for="form-data">Data de Envio</label>
+          <input type="date" id="form-data" readonly class="form-control">
+        </div>
+
+        <!-- Seção: Pipeline Status (visível para Admin) -->
+        <div class="form-group" id="group-form-status-selector">
+          <label>Status do Processamento</label>
+          <div class="pipeline-selector" id="pipeline-status-container"></div>
+          <input type="hidden" id="form-status-val" value="Enviado">
+        </div>
+
+        <!-- File Upload: Signed Minutes (Exigido no cadastro) -->
+        <div class="form-group" id="group-ata-assinada">
+          <label>Arquivo: Ata Assinada (PDF) <span class="required">*</span></label>
+          <div class="file-dropzone" id="dropzone-ata-assinada">
+            <span class="material-icons-round file-icon">cloud_upload</span>
+            <p class="dropzone-text">Clique ou arraste o PDF assinado original</p>
+            <input type="file" id="file-ata-assinada" accept="application/pdf" class="hidden-file-input">
+            <div class="file-preview hidden" id="preview-ata-assinada">
+              <span class="material-icons-round preview-icon">picture_as_pdf</span>
+              <span class="file-name" id="name-ata-assinada"></span>
+              <button type="button" class="btn-remove-file" id="remove-ata-assinada"><span class="material-icons-round">cancel</span></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Protocol Number (Visível a partir de Em Protocolo) -->
+        <div class="form-group hidden" id="group-protocolo">
+          <label for="form-protocolo">Número do Protocolo (Junta Comercial) <span class="required">*</span></label>
+          <input type="text" id="form-protocolo" class="form-control" placeholder="Ex: PRT123456789">
+        </div>
+
+        <!-- File Upload: Registered Minutes (Visível a partir de Registrada) -->
+        <div class="form-group hidden" id="group-ata-registrada">
+          <label>Arquivo: Ata Registrada Chancelada (PDF) <span class="required">*</span></label>
+          <div class="file-dropzone" id="dropzone-ata-registrada">
+            <span class="material-icons-round file-icon">cloud_upload</span>
+            <p class="dropzone-text">Clique ou arraste o PDF chancelado da Junta</p>
+            <input type="file" id="file-ata-registrada" accept="application/pdf" class="hidden-file-input">
+            <div class="file-preview hidden" id="preview-ata-registrada">
+              <span class="material-icons-round preview-icon">verified</span>
+              <span class="file-name" id="name-ata-registrada"></span>
+              <button type="button" class="btn-remove-file" id="remove-ata-registrada"><span class="material-icons-round">cancel</span></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Finance Section (Visível a partir de Aguardando Pagamento) -->
+        <div class="form-section-divider hidden" id="divider-financeiro">Reembolso & Custos Despachante</div>
+        <div class="form-row hidden" id="group-financeiro-valores">
+          <div class="form-group col-6">
+            <label for="form-reembolso">Reembolso de Taxas (R$) <span class="required">*</span></label>
+            <input type="number" step="0.01" id="form-reembolso" class="form-control" placeholder="0.00">
+          </div>
+          <div class="form-group col-6">
+            <label for="form-honorarios">Honorários Despachante (R$) <span class="required">*</span></label>
+            <input type="number" step="0.01" id="form-honorarios" class="form-control" placeholder="0.00">
+          </div>
+        </div>
+        <div class="form-group hidden" id="group-nota-fiscal">
+          <label>Arquivo: Nota Fiscal (PDF) <span class="required">*</span></label>
+          <div class="file-dropzone" id="dropzone-nota-fiscal">
+            <span class="material-icons-round file-icon">receipt_long</span>
+            <p class="dropzone-text">Clique ou arraste a nota fiscal emitida</p>
+            <input type="file" id="file-nota-fiscal" accept="application/pdf,image/*" class="hidden-file-input">
+            <div class="file-preview hidden" id="preview-nota-fiscal">
+              <span class="material-icons-round preview-icon">receipt</span>
+              <span class="file-name" id="name-nota-fiscal"></span>
+              <button type="button" class="btn-remove-file" id="remove-nota-fiscal"><span class="material-icons-round">cancel</span></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group hidden" id="group-comprovante-despesa">
+          <label>Arquivo: Comprovante de Despesa (PDF/Imagem) <span class="required">*</span></label>
+          <div class="file-dropzone" id="dropzone-comprovante-despesa">
+            <span class="material-icons-round file-icon">receipt</span>
+            <p class="dropzone-text">Clique ou arraste o comprovante de despesa</p>
+            <input type="file" id="file-comprovante-despesa" accept="application/pdf,image/*" class="hidden-file-input">
+            <div class="file-preview hidden" id="preview-comprovante-despesa">
+              <span class="material-icons-round preview-icon">receipt</span>
+              <span class="file-name" id="name-comprovante-despesa"></span>
+              <button type="button" class="btn-remove-file" id="remove-comprovante-despesa"><span class="material-icons-round">cancel</span></button>
+            </div>
+          </div>
+        </div>
+
+        <footer class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-ata">Confirmar & Avançar</button>
+        </footer>
+      </form>
+    </div>
+  </div>
+
+  <!-- Script Lógico -->
+  <script>
+    // Injetado pelo Google Apps Script
+    const URL_TOKEN_RAW = "<?= urlToken ?>";
+    const URL_TOKEN = (URL_TOKEN_RAW.startsWith("<" + "?") || URL_TOKEN_RAW === "") ? "" : URL_TOKEN_RAW;
+
+    const pipelineStages = ["Enviado", "Em Protocolo", "Registrada", "Aguardando Pagamento", "Concluído"];
+    
+    const companiesList = [
+      "OUTRA",
+      "ARAÇUAI 1 GD PARQUE SOLAR S.A",
+      "ATALAIA TERMINAIS MARITIMOS S.A.",
+      "BELMONTE 1.1 PARQUE SOLAR S.A.",
+      "BELMONTE 1.2 PARQUE SOLAR S.A.",
+      "BELMONTE 1.3 PARQUE SOLAR S.A.",
+      "BELMONTE 1.4 PARQUE SOLAR S.A.",
+      "BELMONTE 2.1 PARQUE SOLAR S.A.",
+      "BELMONTE 2.2 PARQUE SOLAR S.A.",
+      "BELMONTE 2.3 PARQUE SOLAR S.A.",
+      "BELMONTE 2.4 PARQUE SOLAR S.A.",
+      "BELMONTE 2.5 PARQUE SOLAR S.A.",
+      "BELMONTE 2.6 PARQUE SOLAR S.A.",
+      "BELMONTE I PARQUE SOLAR S.A",
+      "BELMONTE II PARQUE SOLAR S.A",
+      "BELMONTE SOLAR HOLDING S.A",
+      "BOICAÚVA 1 GD PARQUE SOLAR S.A",
+      "CARMO ENERGY S.A",
+      "COBRA BRASIL CONSTRUÇÕES S.A",
+      "COBRA BRASIL SERVIÇOS, COMUNICAÇÕES E ENERGIA S.A.",
+      "COBRA INSTALAÇÕES E SERVIÇOS LTDA",
+      "CRISTINO CASTRO SOLAR HOLDING S.A.",
+      "ELEIA COMERCIALIZADORA DE ENERGIA S.A",
+      "ENGEMISA ENGENHARIA LIMITADA",
+      "ESB - CEARÁ S.A.",
+      "ESB ENERGIA E SUSTENTABILIDADE DO BRASIL S.A",
+      "ESB - NORDESTE S.A.",
+      "ESB - PECÉM S.A.",
+      "ETRABRAS MOBILIDADE E ENERGIA LTDA",
+      "LINS 01 ENERGIA SPE S.A.",
+      "LINS 02 ENERGIA SPE S.A.",
+      "LINS 03 ENERGIA SPE S.A.",
+      "LINS 04 ENERGIA SPE S.A.",
+      "LINS 05 ENERGIA SPE S.A.",
+      "LINS 06 ENERGIA SPE S.A.",
+      "LINS 07 ENERGIA SPE S.A.",
+      "LINS 08 ENERGIA SPE S.A.",
+      "MASA DO BRASIL MANUTENCAO E MONTAGENS LTDA",
+      "MIRABELA 1 GD PARQUE SOLAR S.A.",
+      "MUNDO NOVO SOLAR HOLDING S.A.",
+      "PANORAMA 01 ENERGIA SPE S.A.",
+      "PANORAMA 02 ENERGIA SPE S.A.",
+      "PANORAMA 03 ENERGIA SPE S.A.",
+      "PIRAPORA 1 GD PARQUE SOLAR S.A",
+      "RAIOS DO PARNAÍBA SOLAR HOLDING S.A.",
+      "SERMICRO DO BRASIL SERVICOS E INFORMATICA LTDA",
+      "TAIOBERAS 1 GD PARQUE SOLAR S.A.",
+      "TAIOBERAS 2 GD PARQUE SOLAR S.A",
+      "TECNICAS DE DESALINIZACION DE AGUAS, S. A. (SUCURSAL)",
+      "TRINDADE 1 PARQUE FOTOVOLTAICO S.A.",
+      "TRINDADE 2 PARQUE FOTOVOLTAICO S.A.",
+      "TRINDADE 3 PARQUE FOTOVOLTAICO S.A.",
+      "TRINDADE 4 PARQUE FOTOVOLTAICO S.A.",
+      "TRINDADE 5 PARQUE FOTOVOLTAICO S.A.",
+      "TRINDADE 6 PARQUE FOTOVOLTAICO S.A.",
+      "TRINDADE SOLAR HOLDING S.A.",
+      "VARJAO DE MINAS 1 GD PARQUE SOLAR S.A.",
+      "XADREZ RENOVAVEIS HOLDING S.A."
+    ];
+
+    function populateCompanyDropdowns() {
+      const filter = document.getElementById('filter-company');
+      const form = document.getElementById('form-empresa');
+      if (!filter || !form) return;
+      
+      const filterVal = filter.value;
+      const formVal = form.value;
+      
+      filter.innerHTML = '<option value="">Todas as Empresas</option>';
+      companiesList.forEach(company => {
+        const opt = document.createElement('option');
+        opt.value = company;
+        opt.innerText = company;
+        filter.appendChild(opt);
+      });
+      
+      form.innerHTML = '<option value="" disabled selected>Selecione a empresa...</option>';
+      companiesList.forEach(company => {
+        const opt = document.createElement('option');
+        opt.value = company;
+        opt.innerText = company;
+        form.appendChild(opt);
+      });
+      
+      filter.value = filterVal;
+      form.value = formVal;
+    }
+    
+    function getStatusClass(status) {
+      switch (status) {
+        case 'Enviado': return 'enviado';
+        case 'Em Protocolo': return 'protocolo';
+        case 'Registrada': return 'registrada';
+        case 'Aguardando Pagamento': return 'pagamento';
+        case 'Concluído': return 'concluido';
+        case 'Pendência Cobra': return 'pendencia';
+        default: return '';
+      }
+    }
+
+    function formatDateString(dateStr) {
+      if (!dateStr) return "-";
+      if (dateStr instanceof Date) {
+        dateStr = dateStr.toISOString().split('T')[0];
+      }
+      const str = String(dateStr);
+      const parts = str.split('-');
+      if (parts.length !== 3) return str;
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+
+    function calculateDuration(dataEnvioStr, status, dataConclusaoStr) {
+      if (!dataEnvioStr) return "-";
+      const start = new Date(dataEnvioStr + "T00:00:00");
+      let end = new Date();
+      if (status === 'Concluído') {
+        if (dataConclusaoStr) {
+          end = new Date(dataConclusaoStr + "T23:59:59");
+        }
+      }
+      // Reset time part to count full days
+      start.setHours(0, 0, 0, 0);
+      const endCopy = new Date(end);
+      endCopy.setHours(0, 0, 0, 0);
+      const diffTime = endCopy - start;
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays < 0) return "0 dias";
+      return diffDays === 1 ? "1 dia" : `${diffDays} dias`;
+    }
+
+    
+    // Wrapper de segurança para contornar bloqueios de cookies de terceiros em iframes do Google
+    const safeStorage = {
+      getItem(key) {
+        try {
+          return localStorage.getItem(key);
+        } catch (e) {
+          return this[key] || null;
+        }
+      },
+      setItem(key, value) {
+        try {
+          localStorage.setItem(key, value);
+        } catch (e) {
+          this[key] = value;
+        }
+      }
+    };
+    let state = {
+      atas: [],
+      emails: [],
+      searchQuery: "",
+      selectedCompanyFilter: "",
+      selectedStatusFilter: "",
+      currentFolderFilter: "all",
+      isGoogleAppsScript: false
+    };
+
+    // Dados Locais Fictícios
+    const localFallbackData = [
+      {
+        id: "ATA-572183", empresa: "Cobra", descricao: "Ata de Assembleia Geral Ordinária (AGO) - Aprovação de Contas 2025",
+        dataEnvio: "2026-06-22", status: "Enviado", arquivoAssinada: "AGO_Cobra_2026_Assinada.pdf",
+        urlAssinada: "", protocolo: "", arquivoRegistrada: "", urlRegistrada: "", reembolso: 0, honorarios: 0, arquivoNotaFiscal: "", urlNotaFiscal: ""
+      },
+      {
+        id: "ATA-981245", empresa: "SPE 1", descricao: "Ata de Reunião de Sócios - Aumento de Capital Social",
+        dataEnvio: "2026-06-21", status: "Em Protocolo", arquivoAssinada: "Alteracao_Contrato_SPE1_Assinada.pdf",
+        urlAssinada: "", protocolo: "PRT87654321", arquivoRegistrada: "", urlRegistrada: "", reembolso: 0, honorarios: 0, arquivoNotaFiscal: "", urlNotaFiscal: ""
+      },
+      {
+        id: "ATA-120563", empresa: "SPE 2", descricao: "Ata de Reunião de Diretoria - Eleição de Novo Diretor Técnico",
+        dataEnvio: "2026-06-20", status: "Aguardando Pagamento", arquivoAssinada: "Eleicao_Diretoria_SPE2_Assinada.pdf",
+        urlAssinada: "", protocolo: "PRT12345678", arquivoRegistrada: "Eleicao_Diretoria_SPE2_Registrada.pdf", urlRegistrada: "",
+        reembolso: 120.50, honorarios: 350.00, arquivoNotaFiscal: "NF_1052_Despachante.pdf", urlNotaFiscal: ""
+      }
+    ];
+
+    // Detecção do Ambiente e Tema
+    function checkEnvironment() {
+      try {
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          state.isGoogleAppsScript = true;
+        }
+      } catch (e) {
+        state.isGoogleAppsScript = false;
+      }
+
+      // Garantir Tema Claro
+      document.body.classList.add('light-theme');
+
+      // Restaurar estado da Sidebar (padrão recolhido)
+      const storedCollapsedState = safeStorage.getItem('SGAS_SidebarCollapsed');
+      const isCollapsed = storedCollapsedState === null ? true : storedCollapsedState === 'true';
+      if (isCollapsed) {
+        document.body.classList.add('sidebar-collapsed');
+      }
+    }
+
+    // Inicialização
+    function init() {
+      checkEnvironment();
+      populateCompanyDropdowns();
+      setupEventListeners();
+      checkAuth();
+    }
+
+    // Carregar Banco de Dados
+    function loadData() {
+      showLoading("Carregando registros societários...");
+      if (state.isGoogleAppsScript) {
+        google.script.run
+          .withSuccessHandler(function(data) {
+            try {
+              state.atas = data || [];
+              renderAll();
+              hideLoading();
+            } catch (err) {
+              alert("Erro ao renderizar dados no navegador: " + (err.stack || err.message));
+              hideLoading();
+            }
+          })
+          .withFailureHandler(function(err) {
+            alert("Erro no servidor do Google: " + err.message);
+            hideLoading();
+          })
+          .getAtas();
+      } else {
+        const stored = safeStorage.getItem('SGAS_Atas_Data');
+        if (stored) {
+          try { state.atas = JSON.parse(stored); } catch(e) { state.atas = localFallbackData; }
+        } else {
+          state.atas = localFallbackData;
+          saveLocalStorage();
+        }
+        renderAll();
+        hideLoading();
+      }
+    }
+
+    function renderAll() {
+      renderDashboard();
+      renderDriveExplorer();
+    }
+
+    // Elementos DOM
+    const dashboardView = document.getElementById('dashboard-view');
+    const driveView = document.getElementById('drive-view');
+    const settingsView = document.getElementById('settings-view');
+    const menuDashboard = document.getElementById('menu-dashboard');
+    const menuDrive = document.getElementById('menu-drive');
+    const menuSettings = document.getElementById('menu-settings');
+    const atasTbody = document.getElementById('atas-tbody');
+    const noDataMsg = document.getElementById('no-data-msg');
+    
+    const searchInput = document.getElementById('search-input');
+    const filterCompany = document.getElementById('filter-company');
+    const filterStatus = document.getElementById('filter-status');
+    const btnCollapseSidebar = document.getElementById('btn-collapse-sidebar');
+    const btnExpandSidebar = document.getElementById('btn-expand-sidebar');
+    
+    const kpiTotal = document.getElementById('kpi-total');
+    const kpiProtocolo = document.getElementById('kpi-protocolo');
+    const kpiPagamento = document.getElementById('kpi-pagamento');
+    const kpiConcluido = document.getElementById('kpi-concluido');
+    
+    const btnNewAta = document.getElementById('btn-new-ata');
+    const ataModal = document.getElementById('ata-modal');
+    const modalTitle = document.getElementById('modal-title');
+    const btnCloseModal = document.getElementById('btn-close-modal');
+    const btnCancelModal = document.getElementById('btn-cancel-modal');
+    const ataForm = document.getElementById('ata-form');
+    
+    const formId = document.getElementById('form-id');
+    const formMode = document.getElementById('form-mode');
+    const formEmpresa = document.getElementById('form-empresa');
+    const formDescricao = document.getElementById('form-descricao');
+    const formData = document.getElementById('form-data');
+    const formStatusVal = document.getElementById('form-status-val');
+    const groupFormStatusSelector = document.getElementById('group-form-status-selector');
+    const pipelineStatusContainer = document.getElementById('pipeline-status-container');
+    
+    const groupAtaAssinada = document.getElementById('group-ata-assinada');
+    const groupProtocolo = document.getElementById('group-protocolo');
+    const formProtocolo = document.getElementById('form-protocolo');
+    const groupAtaRegistrada = document.getElementById('group-ata-registrada');
+    const dividerFinanceiro = document.getElementById('divider-financeiro');
+    const groupFinanceiroValores = document.getElementById('group-financeiro-valores');
+    const formReembolso = document.getElementById('form-reembolso');
+    const formHonorarios = document.getElementById('form-honorarios');
+    const groupNotaFiscal = document.getElementById('group-nota-fiscal');
+    const groupComprovanteDespesa = document.getElementById('group-comprovante-despesa');
+
+    const fileInputs = {
+      assinada: {
+        input: document.getElementById('file-ata-assinada'),
+        dropzone: document.getElementById('dropzone-ata-assinada'),
+        preview: document.getElementById('preview-ata-assinada'),
+        nameLabel: document.getElementById('name-ata-assinada'),
+        removeBtn: document.getElementById('remove-ata-assinada'),
+        value: "", base64: ""
+      },
+      registrada: {
+        input: document.getElementById('file-ata-registrada'),
+        dropzone: document.getElementById('dropzone-ata-registrada'),
+        preview: document.getElementById('preview-ata-registrada'),
+        nameLabel: document.getElementById('name-ata-registrada'),
+        removeBtn: document.getElementById('remove-ata-registrada'),
+        value: "", base64: ""
+      },
+      notaFiscal: {
+        input: document.getElementById('file-nota-fiscal'),
+        dropzone: document.getElementById('dropzone-nota-fiscal'),
+        preview: document.getElementById('preview-nota-fiscal'),
+        nameLabel: document.getElementById('name-nota-fiscal'),
+        removeBtn: document.getElementById('remove-nota-fiscal'),
+        value: "", base64: ""
+      },
+      comprovante: {
+        input: document.getElementById('file-comprovante-despesa'),
+        dropzone: document.getElementById('dropzone-comprovante-despesa'),
+        preview: document.getElementById('preview-comprovante-despesa'),
+        nameLabel: document.getElementById('name-comprovante-despesa'),
+        removeBtn: document.getElementById('remove-comprovante-despesa'),
+        value: "", base64: ""
+      }
+    };
+
+    // Event Listeners
+    function setupEventListeners() {
+      btnCollapseSidebar.addEventListener('click', () => {
+        document.body.classList.add('sidebar-collapsed');
+        safeStorage.setItem('SGAS_SidebarCollapsed', 'true');
+      });
+
+      btnExpandSidebar.addEventListener('click', () => {
+        document.body.classList.remove('sidebar-collapsed');
+        safeStorage.setItem('SGAS_SidebarCollapsed', 'false');
+      });
+
+      menuDashboard.addEventListener('click', (e) => {
+        e.preventDefault();
+        menuDashboard.classList.add('active');
+        menuDrive.classList.remove('active');
+        menuSettings.classList.remove('active');
+        dashboardView.classList.remove('hidden');
+        driveView.classList.add('hidden');
+        settingsView.classList.add('hidden');
+        renderDashboard();
+      });
+
+      menuDrive.addEventListener('click', (e) => {
+        e.preventDefault();
+        menuDrive.classList.add('active');
+        menuDashboard.classList.remove('active');
+        menuSettings.classList.remove('active');
+        driveView.classList.remove('hidden');
+        dashboardView.classList.add('hidden');
+        settingsView.classList.add('hidden');
+        renderDriveExplorer();
+      });
+
+      menuSettings.addEventListener('click', (e) => {
+        e.preventDefault();
+        menuSettings.classList.add('active');
+        menuDashboard.classList.remove('active');
+        menuDrive.classList.remove('active');
+        settingsView.classList.remove('hidden');
+        dashboardView.classList.add('hidden');
+        driveView.classList.add('hidden');
+        loadNotificationEmails();
+      });
+
+      searchInput.addEventListener('input', (e) => { state.searchQuery = e.target.value; renderDashboard(); });
+      filterCompany.addEventListener('change', (e) => { state.selectedCompanyFilter = e.target.value; renderDashboard(); });
+      filterStatus.addEventListener('change', (e) => { state.selectedStatusFilter = e.target.value; renderDashboard(); });
+
+      document.querySelectorAll('.kpi-card').forEach(card => {
+        card.addEventListener('click', () => {
+          const status = card.getAttribute('data-status');
+          filterStatus.value = status === "Total" ? "" : status;
+          state.selectedStatusFilter = status === "Total" ? "" : status;
+          renderDashboard();
+        });
+      });
+
+      btnNewAta.addEventListener('click', () => openModal(null, 'create'));
+      btnCloseModal.addEventListener('click', closeModal);
+      btnCancelModal.addEventListener('click', closeModal);
+      ataForm.addEventListener('submit', handleFormSubmit);
+
+      // File Inputs
+      Object.keys(fileInputs).forEach(key => {
+        const f = fileInputs[key];
+        f.dropzone.addEventListener('click', (e) => {
+          if (!e.target.closest('.file-preview')) f.input.click();
+        });
+
+        f.input.addEventListener('click', (e) => {
+          e.stopPropagation();
+        });
+        
+        f.input.addEventListener('change', (e) => {
+          if (e.target.files.length > 0) {
+            const file = e.target.files[0];
+            f.value = file.name;
+            showFilePreview(key, file.name);
+            const reader = new FileReader();
+            reader.onload = function(evt) { f.base64 = evt.target.result; };
+            reader.readAsDataURL(file);
+          }
+        });
+
+        f.removeBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          f.value = ""; f.base64 = ""; f.input.value = "";
+          hideFilePreview(key);
+        });
+      });
+
+      // Form de login e logout
+      const formLogin = document.getElementById('form-login');
+      if (formLogin) {
+        formLogin.addEventListener('submit', (e) => {
+          e.preventDefault();
+          requestLogin();
+        });
+      }
+
+      const btnLogout = document.getElementById('btn-logout');
+      if (btnLogout) {
+        btnLogout.addEventListener('click', logout);
+      }
+    }
+
+    // Dashboard Render
+    function renderDashboard() {
+      let filtered = state.atas.filter(ata => {
+        const matchesSearch = ata.descricao.toLowerCase().includes(state.searchQuery.toLowerCase()) || 
+                              ata.id.toLowerCase().includes(state.searchQuery.toLowerCase()) ||
+                              (ata.protocolo && ata.protocolo.toLowerCase().includes(state.searchQuery.toLowerCase()));
+        const matchesCompany = state.selectedCompanyFilter === "" || ata.empresa === state.selectedCompanyFilter;
+        const matchesStatus = state.selectedStatusFilter === "" || ata.status === state.selectedStatusFilter;
+        return matchesSearch && matchesCompany && matchesStatus;
+      });
+
+      atasTbody.innerHTML = "";
+      if (filtered.length === 0) {
+        noDataMsg.classList.remove('hidden');
+      } else {
+        noDataMsg.classList.add('hidden');
+        filtered.forEach(ata => {
+          const tr = document.createElement('tr');
+          
+          // Formatação de custos totais
+          const totalCost = (Number(ata.reembolso) || 0) + (Number(ata.honorarios) || 0);
+          const costText = totalCost > 0 ? `R$ ${totalCost.toFixed(2).replace('.', ',')}` : "-";
+          
+          // Badge do status
+          const statusBadge = `<span class="badge badge-${getStatusClass(ata.status)}">${ata.status}</span>`;
+          
+          // Calcular duração do processo societário
+          const duration = calculateDuration(ata.dataEnvio, ata.status, ata.dataConclusao);
+
+          // Coluna de downloads (Se tiver a URL do drive, gera link real, senão simula)
+          let filesHTML = '<div class="files-list-cell">';
+          if (ata.arquivoAssinada) {
+            filesHTML += formatFileLinkHTML("📄 Assinada", ata.arquivoAssinada, ata.urlAssinada);
+          }
+          if (ata.arquivoRegistrada) {
+            filesHTML += formatFileLinkHTML("✅ Registrada", ata.arquivoRegistrada, ata.urlRegistrada);
+          }
+          if (ata.arquivoNotaFiscal) {
+            filesHTML += formatFileLinkHTML("🧾 Nota Fiscal", ata.arquivoNotaFiscal, ata.urlNotaFiscal);
+          }
+          if (ata.arquivoComprovante) {
+            filesHTML += formatFileLinkHTML("🧾 Comprovante", ata.arquivoComprovante, ata.urlComprovante);
+          }
+          filesHTML += '</div>';
+
+          // Botões contextuais do fluxo (Despachante)
+          let workflowActionHTML = "";
+          switch (ata.status) {
+            case 'Enviado':
+              workflowActionHTML = `<button class="btn-workflow-action action-btn-enviado" onclick="openModal('${ata.id}', 'workflow_protocolo')"><span class="material-icons-round" style="font-size:11px;">pending_actions</span> Protocolar</button>`;
+              break;
+            case 'Em Protocolo':
+              workflowActionHTML = `<button class="btn-workflow-action action-btn-protocolo" onclick="openModal('${ata.id}', 'workflow_registro')"><span class="material-icons-round" style="font-size:11px;">verified</span> Registrar</button>`;
+              break;
+            case 'Registrada':
+              workflowActionHTML = `<button class="btn-workflow-action action-btn-registrada" onclick="openModal('${ata.id}', 'workflow_financeiro')"><span class="material-icons-round" style="font-size:11px;">payments</span> Lançar Custos</button>`;
+              break;
+            case 'Aguardando Pagamento':
+              workflowActionHTML = `<button class="btn-workflow-action action-btn-pagamento" onclick="openModal('${ata.id}', 'workflow_pagar')"><span class="material-icons-round" style="font-size:11px;">check_circle</span> Pagar</button>`;
+              break;
+            case 'Concluído':
+              workflowActionHTML = "";
+              break;
+            case 'Pendência Cobra':
+              workflowActionHTML = `<span style="font-size: 9px; font-weight: 700; color: var(--color-danger); text-transform: uppercase; display: inline-flex; align-items: center; gap: 4px; border: 1px solid rgba(239, 68, 68, 0.25); background-color: rgba(239, 68, 68, 0.08); padding: 4px 10px; border-radius: 20px;"><span class="material-icons-round" style="font-size: 11px;">hourglass_empty</span> Pendente</span>`;
+              break;
+          }
+
+          let isPending = ata.status === 'Pendência Cobra';
+          let pendencyButton = "";
+          if (ata.status !== 'Concluído') {
+            pendencyButton = `
+              <button class="btn-icon ${isPending ? 'pending-active' : ''}" onclick="togglePendency('${ata.id}')" title="${isPending ? 'Resolver Pendência Cobra (Retornar ao status anterior)' : 'Marcar como Pendência Cobra'}">
+                <span class="material-icons-round" style="${isPending ? 'color: var(--color-danger); font-weight: bold;' : 'color: var(--text-muted);'}">warning</span>
+              </button>
+            `;
+          }
+
+          tr.innerHTML = `
+            <td class="company-cell">${ata.empresa}</td>
+            <td>
+              <div class="desc-cell" title="${ata.descricao}" style="font-weight: 600; font-size: 11px; margin-bottom: 2px;">${ata.descricao}</div>
+              <div style="font-size: 9px; color: var(--text-muted); display: flex; flex-direction: column; gap: 2px;">
+                <span>ID: ${ata.id}</span>
+                <span>Envio: ${formatDateString(ata.dataEnvio)}</span>
+              </div>
+            </td>
+            <td>
+              <div>${ata.protocolo || '<span style="color: var(--text-muted);">-</span>'}</div>
+              ${ata.dataProtocolo ? `<span style="font-size: 9px; color: var(--text-muted);">Inserido: ${formatDateString(ata.dataProtocolo)}</span>` : ''}
+            </td>
+            <td><span style="font-weight: 600;">${duration}</span></td>
+            <td>${statusBadge}</td>
+            <td>${filesHTML}</td>
+            <td>
+              <div class="action-group">
+                ${workflowActionHTML}
+                ${pendencyButton}
+                ${ata.folderUrl ? `<button class="btn-icon" onclick="window.open('${ata.folderUrl}', '_blank')" title="Abrir pasta da ata no Google Drive"><span class="material-icons-round" style="color: var(--color-success);">folder</span></button>` : ''}
+                
+                <!-- Botão Administrador discreto no final para ajustes manuais -->
+                <button class="btn-icon edit" onclick="openModal('${ata.id}', 'edit_admin')" title="Correção Manual (Administrador)" style="margin-left: 8px;">
+                  <span class="material-icons-round">settings</span>
+                </button>
+                <button class="btn-icon delete" onclick="deleteAta('${ata.id}')" title="Excluir">
+                  <span class="material-icons-round">delete</span>
+                </button>
+              </div>
+            </td>
+          `;
+          atasTbody.appendChild(tr);
+        });
+      }
+
+      // KPIs
+      kpiTotal.innerText = state.atas.length;
+      kpiProtocolo.innerText = state.atas.filter(a => a.status === 'Em Protocolo').length;
+      kpiPagamento.innerText = state.atas.filter(a => a.status === 'Aguardando Pagamento').length;
+      kpiConcluido.innerText = state.atas.filter(a => a.status === 'Concluído').length;
+    }
+
+    function formatFileLinkHTML(label, filename, url) {
+      if (url && url.startsWith('http')) {
+        return `<a href="${url}" target="_blank" class="file-link-btn" title="Baixar do Google Drive: ${filename}"><span class="material-icons-round" style="font-size:11px;">download</span> ${label}</a>`;
+      }
+      return `<span class="file-link-btn" title="Arquivo simulado: ${filename}"><span class="material-icons-round" style="font-size:11px;">attach_file</span> ${label}</span>`;
+    }
+
+    // Modal Control & Custom Workflow Forms
+    function openModal(id = null, mode = 'create') {
+      ataModal.classList.add('active');
+      ataForm.reset();
+      formMode.value = mode;
+      
+      // Limpar arquivos temporários
+      Object.keys(fileInputs).forEach(key => hideFilePreview(key));
+
+      // Reset de exigências de campos para evitar travamentos de validação HTML5
+      fileInputs.assinada.input.required = false;
+      formProtocolo.required = false;
+      fileInputs.registrada.input.required = false;
+      formReembolso.required = false;
+      formHonorarios.required = false;
+      fileInputs.notaFiscal.input.required = false;
+      fileInputs.comprovante.input.required = false;
+
+      // Reset de visibilidades de campos padrão
+      setInputsReadOnly(false);
+      groupFormStatusSelector.classList.add('hidden');
+      groupAtaAssinada.classList.remove('hidden');
+      groupProtocolo.classList.add('hidden');
+      groupAtaRegistrada.classList.add('hidden');
+      dividerFinanceiro.classList.add('hidden');
+      groupFinanceiroValores.classList.add('hidden');
+      groupNotaFiscal.classList.add('hidden');
+      groupComprovanteDespesa.classList.add('hidden');
+
+      if (mode === 'create') {
+        // Novo Envio de Ata (Realizado pela Cobra)
+        formId.value = "";
+        modalTitle.innerText = "Cadastrar Envio de Ata";
+        formData.value = new Date().toISOString().split('T')[0];
+        formStatusVal.value = "Enviado";
+        
+        fileInputs.assinada.input.required = true;
+        formProtocolo.required = false;
+        fileInputs.registrada.input.required = false;
+        formReembolso.required = false;
+        formHonorarios.required = false;
+        fileInputs.notaFiscal.input.required = false;
+      } else {
+        // Carregar dados da ata existente
+        const ata = state.atas.find(a => a.id === id);
+        if (!ata) return;
+
+        formId.value = ata.id;
+        formEmpresa.value = ata.empresa;
+        formDescricao.value = ata.descricao;
+        formData.value = ata.dataEnvio;
+        formStatusVal.value = ata.status;
+        formProtocolo.value = ata.protocolo || "";
+        formReembolso.value = ata.reembolso || "";
+        formHonorarios.value = ata.honorarios || "";
+
+        // Previews de arquivos pré-existentes
+        if (ata.arquivoAssinada) {
+          fileInputs.assinada.value = ata.arquivoAssinada;
+          showFilePreview('assinada', ata.arquivoAssinada);
+        }
+        if (ata.arquivoRegistrada) {
+          fileInputs.registrada.value = ata.arquivoRegistrada;
+          showFilePreview('registrada', ata.arquivoRegistrada);
+        }
+        if (ata.arquivoNotaFiscal) {
+          fileInputs.notaFiscal.value = ata.arquivoNotaFiscal;
+          showFilePreview('notaFiscal', ata.arquivoNotaFiscal);
+        }
+        if (ata.arquivoComprovante) {
+          fileInputs.comprovante.value = ata.arquivoComprovante;
+          showFilePreview('comprovante', ata.arquivoComprovante);
+        }
+
+        // Aplicação das regras baseadas no modo de ação selecionado
+        if (mode === 'workflow_protocolo') {
+          // Ação do Despachante: Inserir Protocolo
+          modalTitle.innerText = "Registrar Protocolo (Junta)";
+          setInputsReadOnly(true); // Bloqueia empresa/descrição para evitar alterações acidentais
+          groupAtaAssinada.classList.add('hidden'); // Oculta upload da ata original (já está lá)
+          
+          groupProtocolo.classList.remove('hidden');
+          formProtocolo.required = true;
+          formStatusVal.value = "Em Protocolo"; // Avança automaticamente ao salvar
+        }
+        else if (mode === 'workflow_registro') {
+          // Ação do Despachante: Subir Ata Registrada
+          modalTitle.innerText = "Enviar Ata Registrada";
+          setInputsReadOnly(true);
+          groupAtaAssinada.classList.add('hidden');
+          
+          groupProtocolo.classList.remove('hidden');
+          formProtocolo.setAttribute('readonly', true); // Protocolo fixo
+          
+          groupAtaRegistrada.classList.remove('hidden');
+          fileInputs.registrada.input.required = true;
+          formStatusVal.value = "Registrada"; // Avança automaticamente ao salvar
+        }
+        else if (mode === 'workflow_financeiro') {
+          // Ação do Despachante: Lançar NF e Taxas
+          modalTitle.innerText = "Lançar Reembolsos & NF";
+          setInputsReadOnly(true);
+          groupAtaAssinada.classList.add('hidden');
+          
+          dividerFinanceiro.classList.remove('hidden');
+          groupFinanceiroValores.classList.remove('hidden');
+          groupNotaFiscal.classList.remove('hidden');
+          groupComprovanteDespesa.classList.remove('hidden');
+          
+          formReembolso.required = true;
+          formHonorarios.required = true;
+          fileInputs.notaFiscal.input.required = true;
+          fileInputs.comprovante.input.required = true;
+          formStatusVal.value = "Aguardando Pagamento"; // Avança automaticamente ao salvar
+        }
+        else if (mode === 'workflow_pagar') {
+          // Ação da Cobra: Confirmar Liquidação Financeira
+          modalTitle.innerText = "Confirmar Pagamento";
+          setInputsReadOnly(true);
+          groupAtaAssinada.classList.add('hidden');
+          
+          dividerFinanceiro.classList.remove('hidden');
+          groupFinanceiroValores.classList.remove('hidden');
+          groupNotaFiscal.classList.remove('hidden');
+          groupComprovanteDespesa.classList.remove('hidden');
+          formReembolso.setAttribute('readonly', true);
+          formHonorarios.setAttribute('readonly', true);
+          
+          // Exibe os arquivos mas sem permitir exclusão
+          fileInputs.notaFiscal.removeBtn.classList.add('hidden');
+          fileInputs.comprovante.removeBtn.classList.add('hidden');
+          
+          formStatusVal.value = "Concluído";
+        }
+        else if (mode === 'edit_admin') {
+          // Correção Completa / Modo Admin
+          modalTitle.innerText = "Ajustes Administrador";
+          groupFormStatusSelector.classList.remove('hidden');
+          
+          // Exibe tudo aberto para edição manual
+          groupProtocolo.classList.remove('hidden');
+          groupAtaRegistrada.classList.remove('hidden');
+          dividerFinanceiro.classList.remove('hidden');
+          groupFinanceiroValores.classList.remove('hidden');
+          groupNotaFiscal.classList.remove('hidden');
+          groupComprovanteDespesa.classList.remove('hidden');
+
+          renderPipelineSelector(ata.status);
+        }
+      }
+    }
+
+    function setInputsReadOnly(readonly) {
+      if (readonly) {
+        formEmpresa.setAttribute('disabled', 'disabled');
+        formDescricao.setAttribute('readonly', 'readonly');
+        fileInputs.assinada.removeBtn.classList.add('hidden');
+        fileInputs.registrada.removeBtn.classList.add('hidden');
+        fileInputs.notaFiscal.removeBtn.classList.add('hidden');
+        fileInputs.comprovante.removeBtn.classList.add('hidden');
+      } else {
+        formEmpresa.removeAttribute('disabled');
+        formDescricao.removeAttribute('readonly');
+        formProtocolo.removeAttribute('readonly');
+        formReembolso.removeAttribute('readonly');
+        formHonorarios.removeAttribute('readonly');
+        fileInputs.assinada.removeBtn.classList.remove('hidden');
+        fileInputs.registrada.removeBtn.classList.remove('hidden');
+        fileInputs.notaFiscal.removeBtn.classList.remove('hidden');
+        fileInputs.comprovante.removeBtn.classList.remove('hidden');
+      }
+    }
+
+    function closeModal() { ataModal.classList.remove('active'); }
+
+    function renderPipelineSelector(currentStatus) {
+      pipelineStatusContainer.innerHTML = "";
+      pipelineStages.forEach(stage => {
+        const btn = document.createElement('button');
+        btn.type = "button";
+        btn.className = `pipeline-btn ${stage === currentStatus ? 'active' : ''}`;
+        btn.setAttribute('data-status', stage);
+        btn.innerText = stage;
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.pipeline-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          formStatusVal.value = stage;
+        });
+        pipelineStatusContainer.appendChild(btn);
+      });
+    }
+
+    function showFilePreview(key, filename) {
+      const f = fileInputs[key];
+      f.dropzone.querySelector('.file-icon').classList.add('hidden');
+      f.dropzone.querySelector('.dropzone-text').classList.add('hidden');
+      f.preview.classList.remove('hidden');
+      f.nameLabel.innerText = filename;
+    }
+
+    function hideFilePreview(key) {
+      const f = fileInputs[key];
+      f.dropzone.querySelector('.file-icon').classList.remove('hidden');
+      f.dropzone.querySelector('.dropzone-text').classList.remove('hidden');
+      f.preview.classList.add('hidden');
+      f.nameLabel.innerText = "";
+    }
+
+    // Salvar Registro (Integração Google vs LocalStorage)
+    async function handleFormSubmit(e) {
+      e.preventDefault();
+      
+      let id = formId.value;
+      if (!id) {
+        // Ata nova: reserva o ID sequencial no servidor ANTES de subir arquivos,
+        // para que a pasta no Drive e o registro usem exatamente o mesmo id.
+        id = state.isGoogleAppsScript
+          ? await reservarIdPromise()
+          : `ATA-${Math.floor(100000 + Math.random() * 900000)}`;
+      }
+      const empresa = formEmpresa.value;
+      const descricao = formDescricao.value;
+      const data = formData.value;
+      const status = formStatusVal.value;
+      const protocoloVal = formProtocolo.value;
+      const reembolsoVal = Number(formReembolso.value) || 0;
+      const honorariosVal = Number(formHonorarios.value) || 0;
+
+      showLoading("Salvando registro e carregando arquivos na Nuvem...");
+
+      try {
+        let urlAssinada = "";
+        let urlRegistrada = "";
+        let urlNF = "";
+        let urlComprovante = "";
+        let folderUrl = "";
+
+        // Se estiver rodando no Google Cloud, realiza o upload dos novos arquivos anexados
+        if (state.isGoogleAppsScript) {
+          if (fileInputs.assinada.base64) {
+            const res = await uploadFilePromise(fileInputs.assinada.base64, fileInputs.assinada.value, id, empresa, descricao);
+            urlAssinada = res.url;
+            if (res.folderUrl) folderUrl = res.folderUrl;
+          }
+          if (fileInputs.registrada.base64) {
+            const res = await uploadFilePromise(fileInputs.registrada.base64, fileInputs.registrada.value, id, empresa, descricao);
+            urlRegistrada = res.url;
+            if (res.folderUrl) folderUrl = res.folderUrl;
+          }
+          if (fileInputs.notaFiscal.base64) {
+            const res = await uploadFilePromise(fileInputs.notaFiscal.base64, fileInputs.notaFiscal.value, id, empresa, descricao);
+            urlNF = res.url;
+            if (res.folderUrl) folderUrl = res.folderUrl;
+          }
+          if (fileInputs.comprovante.base64) {
+            const res = await uploadFilePromise(fileInputs.comprovante.base64, fileInputs.comprovante.value, id, empresa, descricao);
+            urlComprovante = res.url;
+            if (res.folderUrl) folderUrl = res.folderUrl;
+          }
+        }
+
+        const oldAta = state.atas.find(a => a.id === id) || {};
+        
+        const ataData = {
+          id, empresa, descricao, dataEnvio: data, status,
+          arquivoAssinada: fileInputs.assinada.value,
+          urlAssinada: urlAssinada || oldAta.urlAssinada || "",
+          protocolo: protocoloVal,
+          arquivoRegistrada: fileInputs.registrada.value,
+          urlRegistrada: urlRegistrada || oldAta.urlRegistrada || "",
+          reembolso: reembolsoVal,
+          honorarios: honorariosVal,
+          arquivoNotaFiscal: fileInputs.notaFiscal.value,
+          urlNotaFiscal: urlNF || oldAta.urlNotaFiscal || "",
+          arquivoComprovante: fileInputs.comprovante.value,
+          urlComprovante: urlComprovante || oldAta.urlComprovante || "",
+          folderUrl: folderUrl || oldAta.folderUrl || ""
+        };
+
+        if (state.isGoogleAppsScript) {
+          google.script.run
+            .withSuccessHandler(function() {
+              closeModal();
+              loadData(); // Recarrega dados atualizados do Google Sheets
+            })
+            .withFailureHandler(function(err) {
+              alert("Erro ao gravar dados no Sheets: " + err.message);
+              hideLoading();
+            })
+            .saveAta(ataData);
+        } else {
+          // Gravação Local
+          if (formId.value) {
+            const idx = state.atas.findIndex(a => a.id === id);
+            state.atas[idx] = ataData;
+          } else {
+            state.atas.unshift(ataData);
+          }
+          saveLocalStorage();
+          closeModal();
+          renderAll();
+          hideLoading();
+        }
+      } catch (err) {
+        alert("Falha ao salvar: " + err.toString());
+        hideLoading();
+      }
+    }
+
+    function uploadFilePromise(base64, filename, ataId, empresa, descricao) {
+      return new Promise((resolve, reject) => {
+        google.script.run
+          .withSuccessHandler((res) => {
+            if (res.error) reject(res.error);
+            else resolve(res);
+          })
+          .withFailureHandler((err) => reject(err))
+          .uploadFileToDrive(base64, filename, ataId, empresa, descricao);
+      });
+    }
+
+    // Pede ao servidor o próximo ID sequencial (0001, 0002…).
+    function reservarIdPromise() {
+      return new Promise((resolve, reject) => {
+        google.script.run
+          .withSuccessHandler((id) => resolve(id))
+          .withFailureHandler((err) => reject(err))
+          .reservarProximoId();
+      });
+    }
+
+    function saveLocalStorage() {
+      safeStorage.setItem('SGAS_Atas_Data', JSON.stringify(state.atas));
+    }
+
+    window.deleteAta = function(id) {
+      if (!confirm(`Atenção! Você tem certeza que deseja excluir em definitivo a ata ${id} e remover todos os arquivos associados? Esta ação não pode ser desfeita.`)) return;
+      showLoading("Excluindo registro...");
+      if (state.isGoogleAppsScript) {
+        google.script.run
+          .withSuccessHandler(function() { loadData(); })
+          .withFailureHandler(function(err) { alert(err.message); hideLoading(); })
+          .deleteAta(id);
+      } else {
+        state.atas = state.atas.filter(a => a.id !== id);
+        saveLocalStorage();
+        renderAll();
+        hideLoading();
+      }
+    };
+
+    // Drive Explorer
+    // Drive Explorer
+    function renderDriveExplorer() {
+      const driveSidebar = document.querySelector('.drive-sidebar');
+      if (driveSidebar) {
+        driveSidebar.innerHTML = `<div class="drive-folder ${state.currentFolderFilter === 'all' ? 'active' : ''}" data-folder="all"><span class="material-icons-round">grid_view</span>Tudo</div>`;
+        state.atas.forEach(ata => {
+          if (ata.folderUrl) {
+            const folderName = `${ata.id} - ${ata.empresa}`;
+            const isSelected = state.currentFolderFilter === ata.id;
+            const folderDiv = document.createElement('div');
+            folderDiv.className = `drive-folder ${isSelected ? 'active' : ''}`;
+            folderDiv.setAttribute('data-folder', ata.id);
+            folderDiv.innerHTML = `<span class="material-icons-round">folder</span>${folderName}`;
+            folderDiv.addEventListener('click', () => {
+              document.querySelectorAll('.drive-folder').forEach(f => f.classList.remove('active'));
+              folderDiv.classList.add('active');
+              state.currentFolderFilter = ata.id;
+              renderDriveExplorer();
+            });
+            driveSidebar.appendChild(folderDiv);
+          }
+        });
+        
+        const allBtn = driveSidebar.querySelector('[data-folder="all"]');
+        if (allBtn) {
+          allBtn.addEventListener('click', (e) => {
+            document.querySelectorAll('.drive-folder').forEach(f => f.classList.remove('active'));
+            e.currentTarget.classList.add('active');
+            state.currentFolderFilter = "all";
+            renderDriveExplorer();
+          });
+        }
+      }
+
+      const grid = document.getElementById('drive-files-grid');
+      grid.innerHTML = "";
+      let files = [];
+
+      state.atas.forEach(ata => {
+        const folderName = `${ata.id} - ${ata.empresa}`;
+        if (ata.arquivoAssinada) {
+          files.push({ name: ata.arquivoAssinada, url: ata.urlAssinada, folder: ata.id, folderName: folderName, type: "Assinada", meta: `Assinada • ${ata.empresa} • ${ata.id}` });
+        }
+        if (ata.arquivoRegistrada) {
+          files.push({ name: ata.arquivoRegistrada, url: ata.urlRegistrada, folder: ata.id, folderName: folderName, type: "Registrada", meta: `Chancelada • ${ata.empresa} • ${ata.id}` });
+        }
+        if (ata.arquivoNotaFiscal) {
+          files.push({ name: ata.arquivoNotaFiscal, url: ata.urlNotaFiscal, folder: ata.id, folderName: folderName, type: "Nota Fiscal", meta: `NF • ${ata.empresa} • ${ata.id}` });
+        }
+      });
+
+      if (state.currentFolderFilter !== "all") {
+        files = files.filter(f => f.folder === state.currentFolderFilter);
+      }
+
+      if (files.length === 0) {
+        grid.innerHTML = `<div style="grid-column: 1/-1; padding: 48px; text-align: center; color: var(--text-muted);"><span class="material-icons-round" style="font-size:37px; margin-bottom:8px;">folder_off</span><p>Nenhum arquivo nesta pasta.</p></div>`;
+        return;
+      }
+
+      files.forEach(file => {
+        const card = document.createElement('div');
+        card.className = "drive-file-card";
+        let icon = "picture_as_pdf";
+        if (file.name.toLowerCase().endsWith('.png') || file.name.toLowerCase().endsWith('.jpg') || file.name.toLowerCase().endsWith('.jpeg')) {
+          icon = "image";
+        } else if (file.type === "Nota Fiscal") {
+          icon = "receipt";
+        } else if (file.type === "Registrada") {
+          icon = "verified";
+        }
+
+        card.innerHTML = `
+          <span class="material-icons-round file-icon">${icon}</span>
+          <div class="file-title" title="${file.name}">${file.name}</div>
+          <div class="file-meta">${file.meta}</div>
+          <div style="font-size: 8px; color: var(--color-primary); font-weight: bold; margin-top: 4px;">/${file.folderName}/</div>
+        `;
+        
+        if (file.url) {
+          card.addEventListener('click', () => window.open(file.url, '_blank'));
+          card.setAttribute('title', 'Clique para abrir no Google Drive');
+        }
+        grid.appendChild(card);
+      });
+    }
+
+    // Loading Screen
+    function showLoading(text) {
+      document.getElementById('loading-text').innerText = text;
+      document.getElementById('loading-screen').classList.add('active');
+    }
+    function hideLoading() {
+      document.getElementById('loading-screen').classList.remove('active');
+    }
+
+    // Funções de Gerenciamento de E-mails
+    function loadNotificationEmails() {
+      showLoading("Carregando e-mails de notificação...");
+      if (state.isGoogleAppsScript) {
+        google.script.run
+          .withSuccessHandler(function(emails) {
+            state.emails = emails || [];
+            renderEmailsList();
+            hideLoading();
+          })
+          .withFailureHandler(function(err) {
+            alert("Erro ao carregar e-mails: " + err.message);
+            hideLoading();
+          })
+          .getNotificationEmails();
+      } else {
+        const stored = safeStorage.getItem('SGAS_Emails');
+        state.emails = stored ? JSON.parse(stored) : ["diretoria@cobrabrasil.com.br"];
+        renderEmailsList();
+        hideLoading();
+      }
+    }
+
+    function renderEmailsList() {
+      const tbody = document.getElementById('emails-tbody');
+      const noEmailsMsg = document.getElementById('no-emails-msg');
+      if (!tbody) return;
+      tbody.innerHTML = "";
+      
+      const emails = state.emails || [];
+      if (emails.length === 0) {
+        noEmailsMsg.classList.remove('hidden');
+      } else {
+        noEmailsMsg.classList.add('hidden');
+        emails.forEach(email => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td style="padding: 12px 16px; font-weight: 500; text-align: left;">${email}</td>
+            <td style="text-align: center; padding: 8px 16px;">
+              <button class="btn-icon delete" onclick="removeNotificationEmail('${email}')" title="Remover e-mail">
+                <span class="material-icons-round">delete</span>
+              </button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+    }
+
+    window.addNotificationEmail = function() {
+      const input = document.getElementById('new-email-input');
+      const email = input.value.trim().toLowerCase();
+      if (!email) return;
+      
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        alert("Por favor, insira um e-mail válido.");
+        return;
+      }
+      
+      if (state.emails.includes(email)) {
+        alert("Este e-mail já está na lista.");
+        return;
+      }
+      
+      state.emails.push(email);
+      saveNotificationEmails();
+      input.value = "";
+    };
+
+    window.removeNotificationEmail = function(email) {
+      if (!confirm(`Remover o e-mail ${email} da lista de notificações?`)) return;
+      state.emails = state.emails.filter(e => e !== email);
+      saveNotificationEmails();
+    };
+
+    function saveNotificationEmails() {
+      showLoading("Salvando configurações...");
+      if (state.isGoogleAppsScript) {
+        google.script.run
+          .withSuccessHandler(function() {
+            renderEmailsList();
+            hideLoading();
+          })
+          .withFailureHandler(function(err) {
+            alert("Erro ao salvar e-mails: " + err.message);
+            hideLoading();
+          })
+          .saveNotificationEmails(state.emails);
+      } else {
+        safeStorage.setItem('SGAS_Emails', JSON.stringify(state.emails));
+        renderEmailsList();
+        hideLoading();
+      }
+    }
+
+    window.togglePendency = function(id) {
+      const ata = state.atas.find(a => a.id === id);
+      if (!ata) return;
+      
+      const isPending = ata.status === 'Pendência Cobra';
+      const confirmMsg = isPending 
+        ? `Você deseja resolver a pendência da ata ${id} e retorná-la ao status anterior?`
+        : `Deseja marcar a ata ${id} como "Pendência Cobra"? O status atual será salvo para restauração posterior.`;
+        
+      if (!confirm(confirmMsg)) return;
+      
+      showLoading(isPending ? "Resolvendo pendência..." : "Marcando pendência...");
+      
+      if (state.isGoogleAppsScript) {
+        google.script.run
+          .withSuccessHandler(function(res) {
+            loadData();
+          })
+          .withFailureHandler(function(err) {
+            alert("Erro ao alterar pendência: " + err.message);
+            hideLoading();
+          })
+          .toggleAtaPendency(id);
+      } else {
+        // Simulação Local
+        if (isPending) {
+          ata.status = ata.statusAnterior || 'Enviado';
+          ata.statusAnterior = "";
+        } else {
+          ata.statusAnterior = ata.status;
+          ata.status = 'Pendência Cobra';
+        }
+        saveLocalStorage();
+        renderAll();
+        hideLoading();
+      }
+    };
+
+    function loadSpreadsheetLink() {
+      if (state.isGoogleAppsScript) {
+        google.script.run
+          .withSuccessHandler(function(url) {
+            const link = document.getElementById('link-spreadsheet');
+            if (link && url) {
+              link.href = url;
+              link.classList.remove('hidden');
+            }
+          })
+          .getSpreadsheetUrl();
+      }
+    }
+
+    let authPollInterval = null;
+
+    function startAuthPolling(token) {
+      if (authPollInterval) clearInterval(authPollInterval);
+      
+      authPollInterval = setInterval(function() {
+        if (!state.isGoogleAppsScript) return;
+        
+        google.script.run
+          .withSuccessHandler(function(res) {
+            if (res && res.sucesso) {
+              clearInterval(authPollInterval);
+              authPollInterval = null;
+              console.log("Sessão ativada via polling para:", res.email);
+              
+              const statusDiv = document.getElementById('login-status');
+              statusDiv.className = 'login-status-msg success';
+              statusDiv.innerText = '🔑 Acesso liberado! Carregando painel...';
+              
+              setTimeout(function() {
+                hideLoginOverlay();
+                loadData();
+                loadSpreadsheetLink();
+              }, 1500);
+            }
+          })
+          .withFailureHandler(function(err) {
+            console.error("Erro no polling de autenticação:", err);
+          })
+          .validateSessionToken(token);
+      }, 3000);
+    }
+
+    function checkAuth() {
+      let sessionToken = safeStorage.getItem('SGAS_SessionToken');
+      
+      if (!state.isGoogleAppsScript) {
+        console.log("Desenvolvimento Local: Autenticação pulada.");
+        hideLoginOverlay();
+        loadData();
+        return;
+      }
+
+      // Se houver token de ativação na URL (clique do e-mail)
+      if (URL_TOKEN) {
+        showLoading("Ativando sua sessão...");
+        google.script.run
+          .withSuccessHandler(function(res) {
+            hideLoading();
+            if (res && res.sucesso) {
+              console.log("Sessão ativada com sucesso!");
+              safeStorage.setItem('SGAS_SessionToken', URL_TOKEN);
+              
+              try {
+                const cleanUrl = window.location.href.split('?')[0];
+                window.history.replaceState({}, document.title, cleanUrl);
+              } catch (e) {}
+
+              showLoginOverlay();
+              const statusDiv = document.getElementById('login-status');
+              statusDiv.style.display = 'block';
+              statusDiv.className = 'login-status-msg success';
+              statusDiv.innerText = "🔑 Acesso liberado! Você já pode fechar esta aba e retornar à aba original ou continuar usando por aqui.";
+              
+              setTimeout(function() {
+                hideLoginOverlay();
+                loadData();
+                loadSpreadsheetLink();
+              }, 3000);
+            } else {
+              showLoginOverlay();
+              const statusDiv = document.getElementById('login-status');
+              statusDiv.style.display = 'block';
+              statusDiv.className = 'login-status-msg danger';
+              statusDiv.innerText = res.erro || 'Falha ao ativar o link de acesso.';
+            }
+          })
+          .withFailureHandler(function(err) {
+            hideLoading();
+            showLoginOverlay();
+            const statusDiv = document.getElementById('login-status');
+            statusDiv.style.display = 'block';
+            statusDiv.className = 'login-status-msg danger';
+            statusDiv.innerText = 'Erro no servidor: ' + err.message;
+          })
+          .activateSession(URL_TOKEN);
+        return;
+      }
+      
+      if (!sessionToken) {
+        showLoginOverlay();
+        return;
+      }
+      
+      showLoading("Validando sua sessão...");
+      google.script.run
+        .withSuccessHandler(function(res) {
+          hideLoading();
+          if (res && res.sucesso) {
+            console.log("Sessão validada para:", res.email);
+            hideLoginOverlay();
+            loadData();
+            loadSpreadsheetLink();
+          } else {
+            if (res && res.aguardandoAtivacao) {
+              showLoginOverlay();
+              const statusDiv = document.getElementById('login-status');
+              statusDiv.style.display = 'block';
+              statusDiv.className = 'login-status-msg info';
+              statusDiv.innerText = '🔑 Link enviado! O painel será liberado automaticamente assim que você clicar no link do e-mail.';
+              startAuthPolling(sessionToken);
+            } else {
+              safeStorage.setItem('SGAS_SessionToken', '');
+              showLoginOverlay();
+              const statusDiv = document.getElementById('login-status');
+              statusDiv.style.display = 'block';
+              statusDiv.className = 'login-status-msg danger';
+              statusDiv.innerText = res.erro || 'Sessão expirada. Solicite um novo link.';
+            }
+          }
+        })
+        .withFailureHandler(function(err) {
+          hideLoading();
+          safeStorage.setItem('SGAS_SessionToken', '');
+          showLoginOverlay();
+          const statusDiv = document.getElementById('login-status');
+          statusDiv.style.display = 'block';
+          statusDiv.className = 'login-status-msg danger';
+          statusDiv.innerText = 'Erro ao conectar ao servidor: ' + err.message;
+        })
+        .validateSessionToken(sessionToken);
+    }
+
+    function showLoginOverlay() {
+      document.getElementById('login-screen').style.display = 'flex';
+      document.getElementById('login-email').value = '';
+      document.getElementById('login-status').style.display = 'none';
+    }
+
+    function hideLoginOverlay() {
+      document.getElementById('login-screen').style.display = 'none';
+    }
+
+    function requestLogin() {
+      const email = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-password').value;
+      if (!email || !password) return;
+      
+      const submitBtn = document.getElementById('btn-request-login');
+      const statusDiv = document.getElementById('login-status');
+      
+      submitBtn.disabled = true;
+      submitBtn.innerText = 'Autenticando...';
+      statusDiv.style.display = 'block';
+      statusDiv.className = 'login-status-msg info';
+      statusDiv.innerText = 'Verificando credenciais...';
+      
+      if (!state.isGoogleAppsScript) {
+        setTimeout(() => {
+          submitBtn.disabled = false;
+          submitBtn.innerText = 'Entrar no Sistema';
+          statusDiv.className = 'login-status-msg success';
+          statusDiv.innerText = '🔑 Login simulado com sucesso (Modo Local)!';
+          
+          setTimeout(() => {
+            hideLoginOverlay();
+            loadData();
+          }, 1000);
+        }, 1000);
+        return;
+      }
+      
+      google.script.run
+        .withSuccessHandler(function(res) {
+          submitBtn.disabled = false;
+          submitBtn.innerText = 'Entrar no Sistema';
+          if (res && res.sucesso) {
+            safeStorage.setItem('SGAS_SessionToken', res.token);
+            statusDiv.className = 'login-status-msg success';
+            statusDiv.innerText = '🔑 Login realizado com sucesso! Carregando painel...';
+            
+            // Limpar campo de senha por segurança
+            document.getElementById('login-password').value = '';
+            
+            setTimeout(function() {
+              hideLoginOverlay();
+              loadData();
+              loadSpreadsheetLink();
+            }, 1500);
+          } else {
+            statusDiv.className = 'login-status-msg danger';
+            statusDiv.innerText = res.erro || 'E-mail ou senha incorretos.';
+          }
+        })
+        .withFailureHandler(function(err) {
+          submitBtn.disabled = false;
+          submitBtn.innerText = 'Entrar no Sistema';
+          statusDiv.className = 'login-status-msg danger';
+          statusDiv.innerText = 'Erro no servidor: ' + err.message;
+        })
+        .loginWithPassword(email, password);
+    }
+
+    function logout() {
+      if (authPollInterval) {
+        clearInterval(authPollInterval);
+        authPollInterval = null;
+      }
+      const sessionToken = safeStorage.getItem('SGAS_SessionToken');
+      safeStorage.setItem('SGAS_SessionToken', '');
+      
+      showLoginOverlay();
+      const statusDiv = document.getElementById('login-status');
+      statusDiv.style.display = 'block';
+      statusDiv.className = 'login-status-msg info';
+      statusDiv.innerText = 'Você saiu do sistema.';
+      
+      if (state.isGoogleAppsScript && sessionToken) {
+        google.script.run
+          .withSuccessHandler(function() {
+            console.log("Sessão removida do servidor.");
+          })
+          .removeSessionToken(sessionToken);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+    window.openModal = openModal;
+  </script>
+</body>
+</html>
