@@ -28,10 +28,13 @@ devolve a "tela" para o Pages e mantém o motor como **peça única**. Decisão 
 ## Domínio (V2): duas trilhas + perfis
 
 - **Processo na Junta:** `Enviado → Em Protocolo → Registrada → Concluído`
-  (+ o toggle **"Pendência Cobra"**, que congela e depois volta ao status anterior — agora
-  com conversa e anexos numa aba `Pendencias`).
+  (+ o toggle **"Pendência"**, que congela e depois volta ao status anterior — agora
+  com conversa e anexos numa aba `Pendencias`). *(Era "Pendência Cobra" até a V2.1.)*
 - **Financeiro (trilha separada, independente da Junta):** `— → Custos lançados →
   Pendente pagamento Cobra → Pago`. Permite cobrar NF/reembolso antes do fim na Junta.
+  A partir da V2.1, **cada ata pode ter vários pedidos de reembolso** (aba `Reembolsos`),
+  cada um com valor + justificativa + anexo próprio; a coluna `Reembolso Taxas` da aba
+  `Atas` guarda a **soma** deles. Honorários seguem como campo único à parte.
 - **Perfis (coluna Permissão da aba `Usuarios`):** `admin` (tudo), `cobra` (sem E-mails,
   Sheets, Correção Manual, Excluir) e `despachante` (também sem Cadastrar e Drive Geral).
 
@@ -42,8 +45,13 @@ Identificação: `ID` (sequencial 0001…), `Empresa` (lista fixa de empresas do
 Documentos (PDF no Drive; a célula guarda o link): `Ata Assinada`, `Ata Registrada`,
 `Nota Fiscal`, `Comprovante de Despesa`, `Pasta no Drive`.
 Protocolo: `Número do Protocolo`, `Data do Protocolo` (automática).
-Financeiro: `Reembolso Taxas`, `Honorários Despachante`.
+Financeiro: `Reembolso Taxas` (soma dos pedidos da aba `Reembolsos`), `Honorários Despachante`.
 Conclusão: `Data de Conclusão` (automática).
+
+Abas auxiliares: `Usuarios` (whitelist + perfil), `Pendencias` (conversa de pendência),
+`Reembolsos` (um pedido por linha: `ID da Ata`, `Data/Hora`, `Autor`, `Valor`,
+`Justificativa`, `Arquivo`). Na coluna **Arquivos** da tela mostra-se só o **ícone da
+pasta** da ata no Drive — os documentos ficam arquivados lá dentro.
 
 ## Regras da Flufa aplicadas
 
@@ -79,12 +87,16 @@ Controle de Despachante/
 
 ## Status
 
-**V2.0.0 no ar (2026-07-01).** Endereço: https://erfrizzera.github.io/controlededespachante/
-Produção (implantação Apps Script `AKfycbz8Fq…`) reimplantada na **versão 2**; moldura e URL inalteradas.
+**V2.1.0 no código (2026-07-10).** Endereço: https://erfrizzera.github.io/controlededespachante/
+V2.0.0 está no ar (implantação Apps Script `AKfycbz8Fq…`, versão 2). **A V2.1 ainda precisa
+ser reimplantada** no painel do Apps Script (Nova versão) para entrar em produção.
 
 - **V1:** motor reescrito do zero + interface portada (`App.html`) + moldura no GitHub Pages.
   Correção: ID sequencial **reservado no servidor** (`reservarProximoId`) evita pasta órfã.
 - **V2:** perfis (admin/cobra/despachante), trilha financeira separada (coluna `Status
   Financeiro`), pendência com **conversa** (aba `Pendencias`; anexos vão pra pasta da ata).
+- **V2.1:** múltiplos **reembolsos** por ata (aba `Reembolsos`, anexo por pedido, total somado
+  na coluna `Reembolso Taxas`); status **"Pendência"** (largou o "Cobra"); coluna **Arquivos**
+  virou o **ícone da pasta** do Drive; selo **"— sem custos"** removido do Status.
 - Segurança por perfil é **na tela** (esconde botões). Endurecer no backend fica pra depois,
   junto da pendência da **senha em texto puro** na aba `Usuarios`.

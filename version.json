@@ -1,5 +1,5 @@
 {
-  "version": "2.0.0",
-  "atualizadoEm": "2026-07-01",
-  "nota": "V2: perfis (admin/cobra/despachante), trilha financeira separada, pendência com conversa."
+  "version": "2.1.0",
+  "atualizadoEm": "2026-07-10",
+  "nota": "V2.1: múltiplos reembolsos por ata (aba Reembolsos, anexo por pedido), status 'Pendência' (sem 'Cobra'), coluna Arquivos vira ícone da pasta, selo 'sem custos' removido."
 }

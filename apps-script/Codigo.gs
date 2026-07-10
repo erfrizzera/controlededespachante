@@ -99,6 +99,7 @@ function getAbaAtas_() {
 
   getAbaUsuarios_(planilha);
   getAbaPendencias_(planilha);
+  getAbaReembolsos_(planilha);
   return aba;
 }
 
@@ -358,7 +359,7 @@ function uploadFileToDrive(base64Data, fileName, ataId, empresa, descricao) {
 
 
 /* ==========================================================================
- * 8. PENDÊNCIA — congela a ata em "Pendência Cobra" e depois restaura
+ * 8. PENDÊNCIA — congela a ata em "Pendência" e depois restaura
  * ========================================================================== */
 
 function toggleAtaPendency(id) {
@@ -374,11 +375,11 @@ function toggleAtaPendency(id) {
   var anterior = String(dados[linha - 1][15] || '');
 
   var novoStatus, novoAnterior;
-  if (atual === 'Pendência Cobra') {
+  if (atual === 'Pendência' || atual === 'Pendência Cobra') {
     novoStatus = anterior || 'Enviado';
     novoAnterior = '';
   } else {
-    novoStatus = 'Pendência Cobra';
+    novoStatus = 'Pendência';
     novoAnterior = atual;
   }
 
@@ -690,7 +691,7 @@ function getPendencias(ataId) {
 /**
  * Registra uma mensagem na conversa de pendência de uma ata.
  * dados = { ataId, autor, papel, mensagem, arquivoNome, base64, acao }
- * acao: 'abrir' (marca Pendência Cobra) | 'responder' | 'resolver' (volta ao status anterior).
+ * acao: 'abrir' (marca Pendência) | 'responder' | 'resolver' (volta ao status anterior).
  * O anexo (se houver) vai para a MESMA pasta da ata no Drive. Avisa por e-mail.
  */
 function postPendencia(dados) {
@@ -722,11 +723,12 @@ function postPendencia(dados) {
 
   // Ajusta o status da ata conforme a ação.
   var novoStatus = statusAtual;
-  if (dados.acao === 'abrir' && statusAtual !== 'Pendência Cobra') {
+  var estaPendente = (statusAtual === 'Pendência' || statusAtual === 'Pendência Cobra');
+  if (dados.acao === 'abrir' && !estaPendente) {
     abaAtas.getRange(linha, 16).setValue(statusAtual); // guarda Status Anterior
-    abaAtas.getRange(linha, 5).setValue('Pendência Cobra');
-    novoStatus = 'Pendência Cobra';
-  } else if (dados.acao === 'resolver' && statusAtual === 'Pendência Cobra') {
+    abaAtas.getRange(linha, 5).setValue('Pendência');
+    novoStatus = 'Pendência';
+  } else if (dados.acao === 'resolver' && estaPendente) {
     var anterior = String(linhas[linha - 1][15] || '') || 'Enviado';
     abaAtas.getRange(linha, 5).setValue(anterior);
     abaAtas.getRange(linha, 16).setValue('');
@@ -750,7 +752,7 @@ function postPendencia(dados) {
 function sendPendenciaEmail_(p) {
   var emails = getNotificationEmails();
   if (!emails || emails.length === 0) return;
-  var titulo = p.acao === 'abrir' ? 'Nova Pendência Cobra'
+  var titulo = p.acao === 'abrir' ? 'Nova Pendência'
              : p.acao === 'resolver' ? 'Pendência resolvida'
              : 'Nova resposta na pendência';
   var sistemaUrl = getSystemUrl_();
@@ -765,4 +767,131 @@ function sendPendenciaEmail_(p) {
       "</div>" +
     "</div>";
   MailApp.sendEmail({ to: emails.join(','), subject: titulo + ': Ata ' + p.id + ' — ' + p.empresa, htmlBody: html, body: titulo + ' — Ata ' + p.id, name: 'Cobra Brasil', noReply: true });
+}
+
+
+/* ==========================================================================
+ * 15. REEMBOLSOS (V2.1) — vários pedidos por ata, cada um justificado + anexo
+ * ==========================================================================
+ * Cada pedido é uma linha na aba "Reembolsos" (ID da Ata, Data/Hora, Autor,
+ * Valor, Justificativa, Arquivo). A coluna "Reembolso Taxas" da aba Atas passa
+ * a guardar a SOMA dos pedidos, para os totais da tela continuarem certos.
+ */
+
+/** Aba "Reembolsos": uma linha por pedido de reembolso. */
+function getAbaReembolsos_(planilha) {
+  planilha = planilha || getPlanilha_();
+  var aba = planilha.getSheetByName('Reembolsos');
+  if (!aba) {
+    aba = planilha.insertSheet('Reembolsos');
+    aba.getRange(1, 1, 1, 6).setValues([['ID da Ata', 'Data/Hora', 'Autor', 'Valor', 'Justificativa', 'Arquivo']])
+      .setBackground('#1A365D').setFontColor('#FFFFFF').setFontWeight('bold');
+    aba.setFrozenRows(1);
+  }
+  return aba;
+}
+
+/** Devolve os pedidos de reembolso de uma ata, em ordem cronológica. */
+function getReembolsos(ataId) {
+  var aba = getAbaReembolsos_();
+  var intervalo = aba.getDataRange();
+  var dados = intervalo.getValues();
+  var ricos = intervalo.getRichTextValues();
+  var tz = aba.getParent().getSpreadsheetTimeZone() || 'America/Sao_Paulo';
+  var itens = [];
+  for (var i = 1; i < dados.length; i++) {
+    if (String(dados[i][0]) !== String(ataId)) continue;
+    itens.push({
+      linha:        i + 1,
+      dataHora:     dados[i][1] instanceof Date ? Utilities.formatDate(dados[i][1], tz, 'dd/MM/yyyy HH:mm') : String(dados[i][1] || ''),
+      autor:        String(dados[i][2] || ''),
+      valor:        Number(dados[i][3]) || 0,
+      justificativa:String(dados[i][4] || ''),
+      arquivo:      String(dados[i][5] || ''),
+      urlArquivo:   ricos[i][5] ? (ricos[i][5].getLinkUrl() || '') : ''
+    });
+  }
+  return itens;
+}
+
+/** Soma todos os pedidos de reembolso de uma ata e grava na coluna 9 (Reembolso Taxas). */
+function recomputarTotalReembolso_(ataId) {
+  var itens = getReembolsos(ataId);
+  var total = 0;
+  for (var i = 0; i < itens.length; i++) total += itens[i].valor;
+
+  var abaAtas = getAbaAtas_();
+  var dados = abaAtas.getDataRange().getValues();
+  for (var j = 1; j < dados.length; j++) {
+    if (String(dados[j][0]) === String(ataId)) {
+      abaAtas.getRange(j + 1, 9).setValue(total);
+      break;
+    }
+  }
+  return total;
+}
+
+/**
+ * Registra um novo pedido de reembolso.
+ * dados = { ataId, autor, valor, justificativa, arquivoNome, base64 }
+ * O anexo vai para a MESMA pasta da ata no Drive. Recalcula o total e, se ainda
+ * não houver trilha financeira, marca "Custos lançados".
+ */
+function postReembolso(dados) {
+  var abaAtas = getAbaAtas_();
+  var linhas = abaAtas.getDataRange().getValues();
+  var linha = -1;
+  for (var i = 1; i < linhas.length; i++) {
+    if (String(linhas[i][0]) === String(dados.ataId)) { linha = i + 1; break; }
+  }
+  if (linha === -1) throw new Error('Ata não encontrada.');
+
+  var empresa   = String(linhas[linha - 1][1] || '');
+  var descricao = String(linhas[linha - 1][2] || '');
+
+  // Anexo → pasta da ata.
+  var arqNome = dados.arquivoNome || '', arqUrl = '';
+  if (dados.base64 && arqNome) {
+    var up = uploadFileToDrive(dados.base64, arqNome, dados.ataId, empresa, descricao);
+    if (up && up.url) arqUrl = up.url;
+  }
+
+  var abaR = getAbaReembolsos_();
+  abaR.appendRow([dados.ataId, new Date(), dados.autor || '', Number(dados.valor) || 0, dados.justificativa || '', arqNome]);
+  if (arqNome && arqUrl) setLinkCell_(abaR, abaR.getLastRow(), 6, arqNome, arqUrl);
+
+  var total = recomputarTotalReembolso_(dados.ataId);
+
+  // Se a trilha financeira ainda está vazia, entra em "Custos lançados".
+  var statusFin = String(linhas[linha - 1][16] || '');
+  if (!statusFin) abaAtas.getRange(linha, 17).setValue('Custos lançados');
+
+  return { sucesso: true, total: total };
+}
+
+/** Exclui um pedido de reembolso (pela linha) e recalcula o total. */
+function deleteReembolso(ataId, linha) {
+  var aba = getAbaReembolsos_();
+  var dados = aba.getDataRange().getValues();
+  var alvo = Number(linha);
+  // Confere que a linha realmente pertence a esta ata antes de apagar.
+  if (alvo >= 2 && alvo <= dados.length && String(dados[alvo - 1][0]) === String(ataId)) {
+    aba.deleteRow(alvo);
+    recomputarTotalReembolso_(ataId);
+    return 'Sucesso';
+  }
+  return 'Não encontrado';
+}
+
+/** Grava só os Honorários Despachante (coluna 10) — trilha à parte dos reembolsos. */
+function setHonorarios(ataId, valor) {
+  var aba = getAbaAtas_();
+  var dados = aba.getDataRange().getValues();
+  for (var i = 1; i < dados.length; i++) {
+    if (String(dados[i][0]) === String(ataId)) {
+      aba.getRange(i + 1, 10).setValue(Number(valor) || 0);
+      return 'Sucesso';
+    }
+  }
+  return 'Não encontrado';
 }
