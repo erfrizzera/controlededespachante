@@ -1,5 +1,5 @@
 {
-  "version": "2.1.0",
-  "atualizadoEm": "2026-07-10",
-  "nota": "V2.1: múltiplos reembolsos por ata (aba Reembolsos, anexo por pedido), status 'Pendência' (sem 'Cobra'), coluna Arquivos vira ícone da pasta, selo 'sem custos' removido."
+  "version": "2.1.1",
+  "atualizadoEm": "2026-07-17",
+  "nota": "Correção: arquivo grande (ata chancelada escaneada) sobe em pedaços de 512 KB — antes o pedido único morria no caminho e a tela girava sem fim. Toda chamada ao servidor agora tem prazo e erro visível na tela."
 }

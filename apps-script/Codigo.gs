@@ -305,55 +305,145 @@ function getPastaRaiz_() {
   return pastas.hasNext() ? pastas.next() : DriveApp.createFolder(PASTA_RAIZ_DRIVE);
 }
 
+/** Acha (ou cria) a subpasta de uma ata e devolve a PASTA. */
+function getOrCreateAtaFolder_(ataId, empresa, descricao) {
+  var raiz = getPastaRaiz_();
+  var prefixo = ataId + ' -';
+  var sub = raiz.getFolders();
+  while (sub.hasNext()) {
+    var p = sub.next();
+    if (p.getName().indexOf(prefixo) === 0) return p;
+  }
+  var nova = raiz.createFolder(ataId + ' - ' + empresa + ' - ' + descricao);
+  nova.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return nova;
+}
+
 /** Acha (ou cria) a subpasta de uma ata e devolve a URL dela. */
 function getOrCreateAtaFolderUrl_(ataId, empresa, descricao) {
   try {
-    var raiz = getPastaRaiz_();
-    var prefixo = ataId + ' -';
-    var sub = raiz.getFolders();
-    while (sub.hasNext()) {
-      var p = sub.next();
-      if (p.getName().indexOf(prefixo) === 0) return p.getUrl();
-    }
-    var nova = raiz.createFolder(ataId + ' - ' + empresa + ' - ' + descricao);
-    nova.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    return nova.getUrl();
+    return getOrCreateAtaFolder_(ataId, empresa, descricao).getUrl();
   } catch (e) {
     Logger.log('Pasta falhou: ' + e);
     return '';
   }
 }
 
+/** Transforma um data URL ("data:application/pdf;base64,XXXX") em arquivo no Drive. */
+function gravarNaPastaDaAta_(tipo, base64Corpo, fileName, ataId, empresa, descricao) {
+  var alvo = getOrCreateAtaFolder_(ataId, empresa, descricao);
+  var blob = Utilities.newBlob(Utilities.base64Decode(base64Corpo), tipo || 'application/pdf', fileName);
+  var arquivo = alvo.createFile(blob);
+  arquivo.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return { name: arquivo.getName(), url: arquivo.getUrl(), id: arquivo.getId(), folderUrl: alvo.getUrl() };
+}
+
 /**
  * Recebe o arquivo em base64 (vindo da tela), grava na pasta da ata e devolve
- * o nome + a URL para a tela guardar.
+ * o nome + a URL para a tela guardar. Só serve para arquivo PEQUENO — acima de
+ * poucos MB o pedido não chega inteiro e a tela usa o caminho em pedaços abaixo.
  */
 function uploadFileToDrive(base64Data, fileName, ataId, empresa, descricao) {
   try {
-    var raiz = getPastaRaiz_();
-    var alvo = null, prefixo = ataId + ' -';
-    var sub = raiz.getFolders();
-    while (sub.hasNext()) {
-      var p = sub.next();
-      if (p.getName().indexOf(prefixo) === 0) { alvo = p; break; }
-    }
-    if (!alvo) {
-      alvo = raiz.createFolder(ataId + ' - ' + empresa + ' - ' + descricao);
-      alvo.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    }
-
     var partes = base64Data.split(',');
     var tipo = partes[0].substring(5, partes[0].indexOf(';'));
-    var bytes = Utilities.base64Decode(partes[1]);
-    var blob = Utilities.newBlob(bytes, tipo, fileName);
-
-    var arquivo = alvo.createFile(blob);
-    arquivo.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-
-    return { name: arquivo.getName(), url: arquivo.getUrl(), id: arquivo.getId(), folderUrl: alvo.getUrl() };
+    return gravarNaPastaDaAta_(tipo, partes[1], fileName, ataId, empresa, descricao);
   } catch (e) {
     Logger.log('Upload falhou: ' + e);
     return { error: 'Erro no servidor ao salvar arquivo: ' + e.message };
+  }
+}
+
+
+/* ==========================================================================
+ * 7b. UPLOAD EM PEDAÇOS — para arquivo grande (a ata chancelada é escaneada)
+ * ==========================================================================
+ * O google.script.run não carrega um base64 de dezenas de MB numa tacada só:
+ * o pedido morre no caminho SEM resposta — nem sucesso, nem erro — e a tela
+ * fica girando para sempre. Então a tela corta o arquivo em pedaços, manda um
+ * de cada vez, e no fim pede para montar. Cada pedaço vira um arquivinho de
+ * texto numa pasta temporária no Drive (a memória do Apps Script não guarda
+ * nada entre duas chamadas).
+ */
+
+var PASTA_PEDACOS = '_pedacos_temporarios';
+
+/** Pasta onde ficam as sessões de upload em andamento. */
+function getPastaPedacos_() {
+  var raiz = getPastaRaiz_();
+  var achadas = raiz.getFoldersByName(PASTA_PEDACOS);
+  return achadas.hasNext() ? achadas.next() : raiz.createFolder(PASTA_PEDACOS);
+}
+
+/** Pasta de UMA sessão de upload. criar=false exige que ela já exista. */
+function getPastaSessao_(sessao, criar) {
+  var temp = getPastaPedacos_();
+  var achadas = temp.getFoldersByName(sessao);
+  if (achadas.hasNext()) return achadas.next();
+  if (!criar) throw new Error('Sessão de upload não encontrada: ' + sessao);
+  return temp.createFolder(sessao);
+}
+
+/** Joga fora sessões abandonadas (mais de 1 dia) para não entulhar o Drive. */
+function limparPedacosAntigos_() {
+  try {
+    var limite = new Date().getTime() - 24 * 60 * 60 * 1000;
+    var velhas = getPastaPedacos_().getFolders();
+    while (velhas.hasNext()) {
+      var p = velhas.next();
+      if (p.getDateCreated().getTime() < limite) p.setTrashed(true);
+    }
+  } catch (e) { Logger.log('Limpeza de pedaços falhou: ' + e); }
+}
+
+/**
+ * Guarda UM pedaço do base64. A tela chama isto N vezes, em ordem.
+ * O nome do arquivinho é o índice zerado à esquerda, para a montagem ordenar certo.
+ */
+function receberPedacoUpload(sessao, indice, pedaco) {
+  try {
+    if (Number(indice) === 0) limparPedacosAntigos_();
+    var pasta = getPastaSessao_(String(sessao), true);
+    var nome = ('000000' + indice).slice(-6);
+
+    // Reenvio do mesmo pedaço: o novo manda, o antigo vai fora.
+    var antigos = pasta.getFilesByName(nome);
+    while (antigos.hasNext()) antigos.next().setTrashed(true);
+
+    pasta.createFile(Utilities.newBlob(pedaco, 'text/plain', nome));
+    return { ok: true, indice: Number(indice) };
+  } catch (e) {
+    Logger.log('Pedaço falhou: ' + e);
+    return { error: 'Erro ao guardar o pedaço ' + indice + ': ' + e.message };
+  }
+}
+
+/** Junta os pedaços na ordem, grava o arquivo final na pasta da ata e limpa a bagunça. */
+function montarArquivoUpload(sessao, tipo, fileName, total, ataId, empresa, descricao) {
+  var pasta;
+  try {
+    pasta = getPastaSessao_(String(sessao), false);
+
+    var partes = [], contados = 0;
+    var arquivos = pasta.getFiles();
+    while (arquivos.hasNext()) {
+      var f = arquivos.next();
+      partes[parseInt(f.getName(), 10)] = f.getBlob().getDataAsString();
+      contados++;
+    }
+
+    // Faltou pedaço = arquivo corrompido. Melhor recusar do que gravar lixo.
+    if (contados !== Number(total)) {
+      return { error: 'Chegaram ' + contados + ' de ' + total + ' pedaços do arquivo. Tente enviar de novo.' };
+    }
+
+    var res = gravarNaPastaDaAta_(tipo, partes.join(''), fileName, ataId, empresa, descricao);
+    pasta.setTrashed(true);
+    return res;
+  } catch (e) {
+    Logger.log('Montagem falhou: ' + e);
+    if (pasta) { try { pasta.setTrashed(true); } catch (e2) {} }
+    return { error: 'Erro ao montar o arquivo no servidor: ' + e.message };
   }
 }
 
@@ -707,9 +797,10 @@ function postPendencia(dados) {
   var descricao   = String(linhas[linha - 1][2] || '');
   var statusAtual = String(linhas[linha - 1][4] || '');
 
-  // Anexo opcional → pasta da ata.
-  var arqNome = dados.arquivoNome || '', arqUrl = '';
-  if (dados.base64 && arqNome) {
+  // Anexo opcional → pasta da ata. A tela já subiu o arquivo (em pedaços, se
+  // for grande) e manda só o link; o base64 aqui é o caminho antigo, de reserva.
+  var arqNome = dados.arquivoNome || '', arqUrl = dados.arquivoUrl || '';
+  if (!arqUrl && dados.base64 && arqNome) {
     var up = uploadFileToDrive(dados.base64, arqNome, dados.ataId, empresa, descricao);
     if (up && up.url) arqUrl = up.url;
   }
@@ -849,9 +940,9 @@ function postReembolso(dados) {
   var empresa   = String(linhas[linha - 1][1] || '');
   var descricao = String(linhas[linha - 1][2] || '');
 
-  // Anexo → pasta da ata.
-  var arqNome = dados.arquivoNome || '', arqUrl = '';
-  if (dados.base64 && arqNome) {
+  // Anexo → pasta da ata. Mesma ideia da pendência: a tela sobe antes e manda o link.
+  var arqNome = dados.arquivoNome || '', arqUrl = dados.arquivoUrl || '';
+  if (!arqUrl && dados.base64 && arqNome) {
     var up = uploadFileToDrive(dados.base64, arqNome, dados.ataId, empresa, descricao);
     if (up && up.url) arqUrl = up.url;
   }

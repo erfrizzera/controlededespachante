@@ -393,6 +393,15 @@
     .file-icon { font-size: 29px; color: var(--text-muted); margin-bottom: 8px; }
     .dropzone-text { font-size: 9px; color: var(--text-secondary); }
     .hidden-file-input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+
+    /* Aviso de erro: o alert() do navegador é abafado dentro de iframe. */
+    .aviso-erro { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 9999;
+      display: none; align-items: center; gap: 10px; max-width: 90vw;
+      background: var(--color-danger); color: #fff; padding: 12px 16px;
+      border-radius: var(--radius-md); box-shadow: 0 6px 24px rgba(0,0,0,.28); font-size: 11px; }
+    .aviso-erro.active { display: flex; }
+    .aviso-erro button { background: none; border: none; color: #fff; cursor: pointer; display: flex; opacity: .8; }
+    .aviso-erro button:hover { opacity: 1; }
     .file-preview { display: flex; align-items: center; gap: 12px; background-color: var(--bg-card); padding: 10px 14px; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-top: 8px; text-align: left; }
     .preview-icon { color: var(--color-primary); font-size: 21px; }
     .file-name { font-size: 10px; font-weight: 500; flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -512,6 +521,13 @@
   <div class="loading-overlay" id="loading-screen">
     <div class="spinner"></div>
     <div class="loading-text" id="loading-text">Conectando ao Google Cloud...</div>
+  </div>
+
+  <!-- Aviso de erro na própria tela (alert do navegador some dentro do iframe) -->
+  <div class="aviso-erro" id="aviso-erro">
+    <span class="material-icons-round">error_outline</span>
+    <span id="aviso-erro-texto"></span>
+    <button type="button" id="aviso-erro-fechar"><span class="material-icons-round">close</span></button>
   </div>
 
   <!-- Login Screen Overlay -->
@@ -1345,6 +1361,10 @@
       btnCancelModal.addEventListener('click', closeModal);
       ataForm.addEventListener('submit', handleFormSubmit);
 
+      document.getElementById('aviso-erro-fechar').addEventListener('click', () => {
+        document.getElementById('aviso-erro').classList.remove('active');
+      });
+
       // File Inputs
       Object.keys(fileInputs).forEach(key => {
         const f = fileInputs[key];
@@ -1522,8 +1542,14 @@
       ataForm.reset();
       formMode.value = mode;
       
-      // Limpar arquivos temporários
-      Object.keys(fileInputs).forEach(key => hideFilePreview(key));
+      // Limpar arquivos temporários. Esconder o preview não basta: sem zerar o
+      // base64, o arquivo escolhido numa abertura anterior do modal subiria de
+      // novo, sozinho, na próxima gravação.
+      Object.keys(fileInputs).forEach(key => {
+        const f = fileInputs[key];
+        f.value = ""; f.base64 = ""; f.input.value = "";
+        hideFilePreview(key);
+      });
 
       // Reset de exigências de campos para evitar travamentos de validação HTML5
       fileInputs.assinada.input.required = false;
@@ -1837,16 +1863,10 @@
         };
 
         if (state.isGoogleAppsScript) {
-          google.script.run
-            .withSuccessHandler(function() {
-              closeModal();
-              loadData(); // Recarrega dados atualizados do Google Sheets
-            })
-            .withFailureHandler(function(err) {
-              alert("Erro ao gravar dados no Sheets: " + err.message);
-              hideLoading();
-            })
-            .saveAta(ataData);
+          showLoading("Gravando o registro na planilha…");
+          await chamarServidor('saveAta', [ataData]);
+          closeModal();
+          loadData(); // Recarrega dados atualizados do Google Sheets
         } else {
           // Gravação Local
           if (formId.value) {
@@ -1861,31 +1881,90 @@
           hideLoading();
         }
       } catch (err) {
-        alert("Falha ao salvar: " + err.toString());
+        avisar('Falha ao salvar: ' + ((err && err.message) || err));
         hideLoading();
       }
     }
 
-    function uploadFilePromise(base64, filename, ataId, empresa, descricao) {
+    // Cada pedaço do base64 mandado ao servidor. Múltiplo de 4 para não cortar
+    // um caractere do base64 no meio. Acima de ~3 MB o pedido único não chega.
+    const TAMANHO_PEDACO = 512 * 1024;
+    const LIMITE_ENVIO_UNICO = 3 * 1024 * 1024;
+
+    /**
+     * Chama o servidor com rede de segurança. O google.script.run cru pode
+     * simplesmente NUNCA responder (pedido grande demais, queda de rede) — e aí
+     * a promessa fica pendurada e a tela gira sem fim. Aqui todo caminho termina:
+     * sucesso, erro, ou estouro de tempo.
+     */
+    function chamarServidor(funcao, args, timeoutMs) {
       return new Promise((resolve, reject) => {
-        google.script.run
-          .withSuccessHandler((res) => {
-            if (res.error) reject(res.error);
+        let terminou = false;
+        const relogio = setTimeout(() => {
+          if (terminou) return;
+          terminou = true;
+          reject(new Error('O servidor do Google não respondeu (' + funcao + '). Verifique a internet e tente de novo.'));
+        }, timeoutMs || 120000);
+
+        const umaVezSo = (fn) => (valor) => {
+          if (terminou) return;
+          terminou = true;
+          clearTimeout(relogio);
+          try { fn(valor); } catch (e) { reject(e); }
+        };
+
+        const runner = google.script.run
+          .withSuccessHandler(umaVezSo((res) => {
+            if (res && res.error) reject(new Error(res.error));
             else resolve(res);
-          })
-          .withFailureHandler((err) => reject(err))
-          .uploadFileToDrive(base64, filename, ataId, empresa, descricao);
+          }))
+          .withFailureHandler(umaVezSo((err) => {
+            reject(err instanceof Error ? err : new Error((err && err.message) || String(err)));
+          }));
+
+        // Chamado no próprio runner (e não com apply(null)) para não perder o
+        // "this" que a API do google.script.run usa por dentro.
+        runner[funcao].apply(runner, args);
       });
+    }
+
+    /**
+     * Sobe um arquivo para a pasta da ata no Drive.
+     * Arquivo pequeno vai de uma vez; arquivo grande (a ata chancelada costuma
+     * ser escaneada, dezenas de MB) vai em pedaços — senão o pedido morre no
+     * caminho e a tela gira para sempre.
+     */
+    async function uploadFilePromise(base64, filename, ataId, empresa, descricao) {
+      const virgula = base64.indexOf(',');
+      const cabecalho = base64.substring(0, virgula);
+      const corpo = base64.substring(virgula + 1);
+      const tipo = cabecalho.substring(5, cabecalho.indexOf(';')) || 'application/pdf';
+
+      let res;
+      if (corpo.length <= LIMITE_ENVIO_UNICO) {
+        res = await chamarServidor('uploadFileToDrive', [base64, filename, ataId, empresa, descricao]);
+      } else {
+        const sessao = `up_${ataId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const total = Math.ceil(corpo.length / TAMANHO_PEDACO);
+
+        for (let i = 0; i < total; i++) {
+          showLoading(`Enviando "${filename}" — ${Math.round((i / total) * 100)}% (${i + 1} de ${total})`);
+          await chamarServidor('receberPedacoUpload', [sessao, i, corpo.substr(i * TAMANHO_PEDACO, TAMANHO_PEDACO)]);
+        }
+
+        showLoading(`Montando "${filename}" no Drive…`);
+        res = await chamarServidor('montarArquivoUpload', [sessao, tipo, filename, total, ataId, empresa, descricao], 300000);
+      }
+
+      if (!res || !res.url) {
+        throw new Error(`O Google não devolveu o link de "${filename}". O arquivo pode não ter sido salvo.`);
+      }
+      return res;
     }
 
     // Pede ao servidor o próximo ID sequencial (0001, 0002…).
     function reservarIdPromise() {
-      return new Promise((resolve, reject) => {
-        google.script.run
-          .withSuccessHandler((id) => resolve(id))
-          .withFailureHandler((err) => reject(err))
-          .reservarProximoId();
-      });
+      return chamarServidor('reservarProximoId', []);
     }
 
     function saveLocalStorage() {
@@ -1994,6 +2073,20 @@
         }
         grid.appendChild(card);
       });
+    }
+
+    /**
+     * Mostra um erro DENTRO da tela. Não dá para confiar no alert() aqui: o
+     * Chrome pode engolir caixas de diálogo vindas de iframe de outra origem, e
+     * é assim que este app roda (moldura no GitHub Pages → app do Apps Script).
+     * Um erro que não aparece é o mesmo que erro nenhum — e foi o que fez a
+     * falha do upload passar tanto tempo despercebida.
+     */
+    function avisar(mensagem) {
+      const caixa = document.getElementById('aviso-erro');
+      document.getElementById('aviso-erro-texto').innerText = mensagem;
+      caixa.classList.add('active');
+      console.error(mensagem);
     }
 
     // Loading Screen
@@ -2502,25 +2595,42 @@
       box.scrollTop = box.scrollHeight;
     }
 
-    function enviarPendencia(acao) {
+    async function enviarPendencia(acao) {
       const id = pendenciaAtaAtual;
       const mensagem = document.getElementById('pendencia-msg').value.trim();
       if (acao !== 'resolver' && !mensagem && !pendenciaFile.value) {
-        alert('Escreva uma mensagem ou anexe um documento.');
+        avisar('Escreva uma mensagem ou anexe um documento.');
         return;
       }
       const papel = (state.role === 'despachante') ? 'Despachante' : 'Cobra';
       showLoading('Enviando...');
-      if (state.isGoogleAppsScript) {
-        google.script.run
-          .withSuccessHandler(function() {
-            document.getElementById('pendencia-modal').classList.remove('active');
-            loadData();
-          })
-          .withFailureHandler(function(err) { alert('Erro: ' + err.message); hideLoading(); })
-          .postPendencia({ ataId: id, autor: state.email || '', papel: papel, mensagem: mensagem, arquivoNome: pendenciaFile.value, base64: pendenciaFile.base64, acao: acao });
-      } else {
+
+      if (!state.isGoogleAppsScript) {
         document.getElementById('pendencia-modal').classList.remove('active');
+        hideLoading();
+        return;
+      }
+
+      try {
+        // O anexo sobe ANTES, sozinho (em pedaços, se for grande), e ao servidor
+        // vai só o link — o base64 inteiro dentro do pedido não aguenta o tranco.
+        let arquivoUrl = '';
+        if (pendenciaFile.base64 && pendenciaFile.value) {
+          const ata = state.atas.find(a => a.id === id) || {};
+          const res = await uploadFilePromise(pendenciaFile.base64, pendenciaFile.value, id, ata.empresa || '', ata.descricao || '');
+          arquivoUrl = res.url;
+        }
+
+        showLoading('Gravando a mensagem...');
+        await chamarServidor('postPendencia', [{
+          ataId: id, autor: state.email || '', papel: papel, mensagem: mensagem,
+          arquivoNome: pendenciaFile.value, arquivoUrl: arquivoUrl, acao: acao
+        }]);
+
+        document.getElementById('pendencia-modal').classList.remove('active');
+        loadData();
+      } catch (err) {
+        avisar('Erro ao enviar a pendência: ' + ((err && err.message) || err));
         hideLoading();
       }
     }
@@ -2636,27 +2746,43 @@
       totalBox.innerText = `Total dos reembolsos: ${formatMoney(total)}`;
     }
 
-    function enviarReembolso() {
+    async function enviarReembolso() {
       const id = reembolsoAtaAtual;
       const valor = Number(document.getElementById('reembolso-valor').value);
       const justificativa = document.getElementById('reembolso-justificativa').value.trim();
 
-      if (!valor || valor <= 0) { alert('Informe um valor válido para o reembolso.'); return; }
-      if (!justificativa) { alert('Escreva a justificativa do pedido.'); return; }
-      if (!reembolsoFile.value) { alert('Anexe a NF ou o comprovante deste pedido.'); return; }
+      if (!valor || valor <= 0) { avisar('Informe um valor válido para o reembolso.'); return; }
+      if (!justificativa) { avisar('Escreva a justificativa do pedido.'); return; }
+      if (!reembolsoFile.value) { avisar('Anexe a NF ou o comprovante deste pedido.'); return; }
 
       const autor = state.email || '';
       showLoading('Registrando reembolso...');
-      if (state.isGoogleAppsScript) {
-        google.script.run
-          .withSuccessHandler(function() {
-            document.getElementById('reembolso-modal').classList.remove('active');
-            loadData();
-          })
-          .withFailureHandler(function(err) { alert('Erro: ' + err.message); hideLoading(); })
-          .postReembolso({ ataId: id, autor: autor, valor: valor, justificativa: justificativa, arquivoNome: reembolsoFile.value, base64: reembolsoFile.base64 });
-      } else {
+
+      if (!state.isGoogleAppsScript) {
         document.getElementById('reembolso-modal').classList.remove('active');
+        hideLoading();
+        return;
+      }
+
+      try {
+        // Mesma ideia da pendência: o anexo sobe primeiro, o pedido leva só o link.
+        let arquivoUrl = '';
+        if (reembolsoFile.base64) {
+          const ata = state.atas.find(a => a.id === id) || {};
+          const res = await uploadFilePromise(reembolsoFile.base64, reembolsoFile.value, id, ata.empresa || '', ata.descricao || '');
+          arquivoUrl = res.url;
+        }
+
+        showLoading('Gravando o pedido...');
+        await chamarServidor('postReembolso', [{
+          ataId: id, autor: autor, valor: valor, justificativa: justificativa,
+          arquivoNome: reembolsoFile.value, arquivoUrl: arquivoUrl
+        }]);
+
+        document.getElementById('reembolso-modal').classList.remove('active');
+        loadData();
+      } catch (err) {
+        avisar('Erro ao registrar o reembolso: ' + ((err && err.message) || err));
         hideLoading();
       }
     }
