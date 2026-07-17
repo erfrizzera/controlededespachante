@@ -402,6 +402,23 @@
     .aviso-erro.active { display: flex; }
     .aviso-erro button { background: none; border: none; color: #fff; cursor: pointer; display: flex; opacity: .8; }
     .aviso-erro button:hover { opacity: 1; }
+
+    /* Confirmação: mesmo motivo do aviso acima — o confirm() do navegador é
+       ignorado dentro do iframe e devolve "não" sem perguntar nada. */
+    .confirmar-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10000;
+      display: none; align-items: center; justify-content: center; padding: 20px;
+      background-color: rgba(4, 6, 10, 0.7); backdrop-filter: blur(4px); }
+    .confirmar-overlay.active { display: flex; }
+    .confirmar-card { width: 420px; max-width: 100%; display: flex; flex-direction: column; gap: 16px;
+      background-color: var(--bg-sidebar); border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); padding: 24px; }
+    .confirmar-titulo { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 700; color: var(--text-primary); }
+    .confirmar-titulo .material-icons-round { font-size: 22px; color: var(--color-primary); }
+    .confirmar-card.perigo .confirmar-titulo .material-icons-round { color: var(--color-danger); }
+    .confirmar-texto { font-size: 11px; line-height: 1.6; color: var(--text-secondary); }
+    .confirmar-acoes { display: flex; gap: 12px; justify-content: flex-end; }
+    .btn-danger { background-color: var(--color-danger); color: #fff; }
+    .btn-danger:hover { background-color: var(--color-danger-hover); }
     .file-preview { display: flex; align-items: center; gap: 12px; background-color: var(--bg-card); padding: 10px 14px; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-top: 8px; text-align: left; }
     .preview-icon { color: var(--color-primary); font-size: 21px; }
     .file-name { font-size: 10px; font-weight: 500; flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -528,6 +545,21 @@
     <span class="material-icons-round">error_outline</span>
     <span id="aviso-erro-texto"></span>
     <button type="button" id="aviso-erro-fechar"><span class="material-icons-round">close</span></button>
+  </div>
+
+  <!-- Confirmação na própria tela (o confirm do navegador some dentro do iframe) -->
+  <div class="confirmar-overlay" id="confirmar">
+    <div class="confirmar-card" id="confirmar-card">
+      <div class="confirmar-titulo">
+        <span class="material-icons-round" id="confirmar-icone">help_outline</span>
+        <span id="confirmar-titulo-texto">Confirmar</span>
+      </div>
+      <p class="confirmar-texto" id="confirmar-texto"></p>
+      <div class="confirmar-acoes">
+        <button type="button" class="btn btn-secondary" id="confirmar-nao">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="confirmar-sim">Confirmar</button>
+      </div>
+    </div>
   </div>
 
   <!-- Login Screen Overlay -->
@@ -1188,12 +1220,12 @@
               renderAll();
               hideLoading();
             } catch (err) {
-              alert("Erro ao renderizar dados no navegador: " + (err.stack || err.message));
+              avisar("Erro ao renderizar dados no navegador: " + (err.stack || err.message));
               hideLoading();
             }
           })
           .withFailureHandler(function(err) {
-            alert("Erro no servidor do Google: " + err.message);
+            avisar("Erro no servidor do Google: " + ((err && err.message) || err));
             hideLoading();
           })
           .getAtas();
@@ -1971,13 +2003,17 @@
       safeStorage.setItem('SGAS_Atas_Data', JSON.stringify(state.atas));
     }
 
-    window.deleteAta = function(id) {
-      if (!confirm(`Atenção! Você tem certeza que deseja excluir em definitivo a ata ${id} e remover todos os arquivos associados? Esta ação não pode ser desfeita.`)) return;
+    window.deleteAta = async function(id) {
+      const ok = await confirmar(
+        `Você tem certeza que deseja excluir em definitivo a ata ${id} e remover todos os arquivos associados? Esta ação não pode ser desfeita.`,
+        { titulo: 'Excluir ata', rotuloSim: 'Excluir', perigo: true }
+      );
+      if (!ok) return;
       showLoading("Excluindo registro...");
       if (state.isGoogleAppsScript) {
         google.script.run
           .withSuccessHandler(function() { loadData(); })
-          .withFailureHandler(function(err) { alert(err.message); hideLoading(); })
+          .withFailureHandler(function(err) { avisar('Erro ao excluir a ata: ' + ((err && err.message) || err)); hideLoading(); })
           .deleteAta(id);
       } else {
         state.atas = state.atas.filter(a => a.id !== id);
@@ -2089,6 +2125,47 @@
       console.error(mensagem);
     }
 
+    /**
+     * Pergunta "tem certeza?" DENTRO da tela, no lugar do confirm() do navegador.
+     * Mesmo motivo do avisar(), com um agravante: o Chrome ignora o confirm()
+     * vindo de iframe de outra origem e devolve false sem perguntar nada. Como
+     * o padrão era `if (!confirm(...)) return;`, o botão Excluir simplesmente
+     * não fazia nada — sem caixa, sem erro, sem pista.
+     * Devolve uma Promise: true se confirmou, false se cancelou.
+     */
+    function confirmar(mensagem, opcoes) {
+      const cfg = opcoes || {};
+      const overlay = document.getElementById('confirmar');
+      const card = document.getElementById('confirmar-card');
+      const btnSim = document.getElementById('confirmar-sim');
+      const btnNao = document.getElementById('confirmar-nao');
+
+      document.getElementById('confirmar-texto').innerText = mensagem;
+      document.getElementById('confirmar-titulo-texto').innerText = cfg.titulo || 'Confirmar';
+      document.getElementById('confirmar-icone').innerText = cfg.perigo ? 'warning_amber' : 'help_outline';
+      card.classList.toggle('perigo', !!cfg.perigo);
+      btnSim.innerText = cfg.rotuloSim || 'Confirmar';
+      btnSim.className = 'btn ' + (cfg.perigo ? 'btn-danger' : 'btn-primary');
+      overlay.classList.add('active');
+      btnSim.focus();
+
+      return new Promise(function(resolve) {
+        function fechar(resposta) {
+          overlay.classList.remove('active');
+          btnSim.removeEventListener('click', aoSim);
+          btnNao.removeEventListener('click', aoNao);
+          document.removeEventListener('keydown', aoTeclar);
+          resolve(resposta);
+        }
+        function aoSim() { fechar(true); }
+        function aoNao() { fechar(false); }
+        function aoTeclar(e) { if (e.key === 'Escape') fechar(false); }
+        btnSim.addEventListener('click', aoSim);
+        btnNao.addEventListener('click', aoNao);
+        document.addEventListener('keydown', aoTeclar);
+      });
+    }
+
     // Loading Screen
     function showLoading(text) {
       document.getElementById('loading-text').innerText = text;
@@ -2109,7 +2186,7 @@
             hideLoading();
           })
           .withFailureHandler(function(err) {
-            alert("Erro ao carregar e-mails: " + err.message);
+            avisar("Erro ao carregar e-mails: " + ((err && err.message) || err));
             hideLoading();
           })
           .getNotificationEmails();
@@ -2154,12 +2231,12 @@
       
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(email)) {
-        alert("Por favor, insira um e-mail válido.");
+        avisar("Por favor, insira um e-mail válido.");
         return;
       }
       
       if (state.emails.includes(email)) {
-        alert("Este e-mail já está na lista.");
+        avisar("Este e-mail já está na lista.");
         return;
       }
       
@@ -2168,8 +2245,11 @@
       input.value = "";
     };
 
-    window.removeNotificationEmail = function(email) {
-      if (!confirm(`Remover o e-mail ${email} da lista de notificações?`)) return;
+    window.removeNotificationEmail = async function(email) {
+      const ok = await confirmar(`Remover o e-mail ${email} da lista de notificações?`, {
+        titulo: 'Remover e-mail', rotuloSim: 'Remover', perigo: true
+      });
+      if (!ok) return;
       state.emails = state.emails.filter(e => e !== email);
       saveNotificationEmails();
     };
@@ -2183,7 +2263,7 @@
             hideLoading();
           })
           .withFailureHandler(function(err) {
-            alert("Erro ao salvar e-mails: " + err.message);
+            avisar("Erro ao salvar e-mails: " + ((err && err.message) || err));
             hideLoading();
           })
           .saveNotificationEmails(state.emails);
@@ -2194,17 +2274,21 @@
       }
     }
 
-    window.togglePendency = function(id) {
+    window.togglePendency = async function(id) {
       const ata = state.atas.find(a => a.id === id);
       if (!ata) return;
-      
+
       const isPending = ata.status === 'Pendência';
-      const confirmMsg = isPending 
+      const confirmMsg = isPending
         ? `Você deseja resolver a pendência da ata ${id} e retorná-la ao status anterior?`
         : `Deseja marcar a ata ${id} como "Pendência"? O status atual será salvo para restauração posterior.`;
-        
-      if (!confirm(confirmMsg)) return;
-      
+
+      const ok = await confirmar(confirmMsg, {
+        titulo: isPending ? 'Resolver pendência' : 'Marcar pendência',
+        rotuloSim: isPending ? 'Resolver' : 'Marcar'
+      });
+      if (!ok) return;
+
       showLoading(isPending ? "Resolvendo pendência..." : "Marcando pendência...");
       
       if (state.isGoogleAppsScript) {
@@ -2213,7 +2297,7 @@
             loadData();
           })
           .withFailureHandler(function(err) {
-            alert("Erro ao alterar pendência: " + err.message);
+            avisar("Erro ao alterar pendência: " + ((err && err.message) || err));
             hideLoading();
           })
           .toggleAtaPendency(id);
@@ -2479,13 +2563,16 @@
     }
 
     // ===== V2: Financeiro — pedir pagamento (ação rápida do despachante) =====
-    window.marcarPendentePagamento = function(id) {
-      if (!confirm(`Marcar a ata ${id} como "Pendente de pagamento pela Cobra"?`)) return;
+    window.marcarPendentePagamento = async function(id) {
+      const ok = await confirmar(`Marcar a ata ${id} como "Pendente de pagamento pela Cobra"?`, {
+        titulo: 'Pedir pagamento', rotuloSim: 'Marcar'
+      });
+      if (!ok) return;
       showLoading("Atualizando financeiro...");
       if (state.isGoogleAppsScript) {
         google.script.run
           .withSuccessHandler(function() { loadData(); })
-          .withFailureHandler(function(err) { alert("Erro: " + err.message); hideLoading(); })
+          .withFailureHandler(function(err) { avisar("Erro ao pedir o pagamento: " + ((err && err.message) || err)); hideLoading(); })
           .setStatusFinanceiro(id, "Pendente pagamento Cobra");
       } else {
         const ata = state.atas.find(a => a.id === id);
@@ -2787,8 +2874,11 @@
       }
     }
 
-    window.removerReembolso = function(linha) {
-      if (!confirm('Excluir este pedido de reembolso?')) return;
+    window.removerReembolso = async function(linha) {
+      const ok = await confirmar('Excluir este pedido de reembolso?', {
+        titulo: 'Excluir reembolso', rotuloSim: 'Excluir', perigo: true
+      });
+      if (!ok) return;
       showLoading('Excluindo pedido...');
       if (state.isGoogleAppsScript) {
         google.script.run
@@ -2798,7 +2888,7 @@
             google.script.run.withSuccessHandler(function(data) { state.atas = data || []; renderDashboard(); }).getAtas();
             hideLoading();
           })
-          .withFailureHandler(function(err) { alert('Erro: ' + err.message); hideLoading(); })
+          .withFailureHandler(function(err) { avisar('Erro ao excluir o pedido de reembolso: ' + ((err && err.message) || err)); hideLoading(); })
           .deleteReembolso(reembolsoAtaAtual, linha);
       } else {
         hideLoading();
@@ -2817,7 +2907,7 @@
             renderDashboard();
             hideLoading();
           })
-          .withFailureHandler(function(err) { alert('Erro: ' + err.message); hideLoading(); })
+          .withFailureHandler(function(err) { avisar('Erro ao salvar os honorários: ' + ((err && err.message) || err)); hideLoading(); })
           .setHonorarios(id, valor);
       } else {
         hideLoading();

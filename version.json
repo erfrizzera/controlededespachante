@@ -1,5 +1,5 @@
 {
-  "version": "2.1.1",
+  "version": "2.1.2",
   "atualizadoEm": "2026-07-17",
-  "nota": "Correção: arquivo grande (ata chancelada escaneada) sobe em pedaços de 512 KB — antes o pedido único morria no caminho e a tela girava sem fim. Toda chamada ao servidor agora tem prazo e erro visível na tela."
+  "nota": "Correção: os botões Excluir (ata e pedido de reembolso) não faziam nada. O Chrome ignora a caixa de \"tem certeza?\" do navegador quando ela vem de dentro do iframe, e o app lia esse silêncio como \"não\". A pergunta agora é uma janela da própria tela."
 }

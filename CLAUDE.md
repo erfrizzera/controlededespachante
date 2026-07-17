@@ -101,7 +101,7 @@ Controle de Despachante/
 
 ## Status
 
-**V2.1.1 no código (2026-07-17).** Endereço: https://erfrizzera.github.io/controlededespachante/
+**V2.1.2 no código (2026-07-17).** Endereço: https://erfrizzera.github.io/controlededespachante/
 
 Estado real da implantação (conferido com `clasp list-deployments` em 2026-07-17 — o texto
 anterior aqui dizia que a V2.1 não tinha subido, e **estava errado**; ela é a versão 4 e está
@@ -112,10 +112,12 @@ no ar desde 10/07):
 | Implantação de produção | `AKfycbz8FqcbL2DqwkqUH0vmoJ503Vui7G7wwD718-QZrGpVeSUXzNgSPN2g5JG9FrgWeMnF` |
 | Versão servida hoje | **4** (V2.1) |
 | Versão da V2.1.1 | **5** — criada e no projeto, mas a implantação ainda aponta pra 4 |
+| Versão da V2.1.2 | ainda não criada — o código está no git, falta subir |
 
-Para a V2.1.1 entrar no ar falta **um passo**: apontar a implantação para a versão 5
-(painel: Implantar → Gerenciar implantações → lápis → Versão 5 → Implantar; ou
-`clasp update-deployment <id> -V 5`).
+A versão no ar (4) é a V2.1, que ainda tem o **Excluir quebrado** descrito na V2.1.2 abaixo.
+Para a V2.1.2 entrar no ar: `clasp push`, criar a versão nova e apontar a implantação pra ela
+(painel: Implantar → Gerenciar implantações → lápis → versão → Implantar; ou
+`clasp update-deployment <id> -V <n>`).
 
 - **V1:** motor reescrito do zero + interface portada (`App.html`) + moldura no GitHub Pages.
   Correção: ID sequencial **reservado no servidor** (`reservarProximoId`) evita pasta órfã.
@@ -128,5 +130,14 @@ Para a V2.1.1 entrar no ar falta **um passo**: apontar a implantação para a ve
   (dezenas de MB) e o envio num pedido só morria calado. Agora vai em pedaços, com porcentagem.
   Junto: prazo em toda chamada ao servidor, erro visível **dentro** da tela via `avisar()` (não
   dá pra confiar no `alert()` rodando em iframe) e o modal passou a descartar o arquivo anterior.
+- **V2.1.2:** o **Excluir** (ata e pedido de reembolso) não fazia nada — e sem aviso nenhum.
+  O Chrome **ignora** `alert`/`confirm`/`prompt` chamados de iframe de outra origem, que é
+  exatamente como o app roda (Pages → Apps Script → googleusercontent). O `confirm()` devolve
+  `false` calado, e o padrão `if (!confirm(...)) return;` lia isso como "o usuário cancelou" —
+  então a função voltava na porta, toda vez. Medido no Chrome: dentro de iframe cross-origin o
+  `confirm()` devolve `false` em ~8 ms, sem caixa nenhuma. Agora existe `confirmar()` — janela
+  na própria tela, devolve Promise —, irmã do `avisar()` da V2.1.1; os `alert()` que sobravam
+  também viraram `avisar()`. **Não sobrou nenhuma chamada a `alert`/`confirm`/`prompt`** no
+  `App.html`: dentro do iframe elas não funcionam, então não são uma opção aqui.
 - Segurança por perfil é **na tela** (esconde botões). Endurecer no backend fica pra depois,
   junto da pendência da **senha em texto puro** na aba `Usuarios`.
