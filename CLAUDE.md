@@ -110,19 +110,22 @@ no ar desde 10/07):
 | Onde | O quê |
 |---|---|
 | Implantação de produção | `AKfycbz8FqcbL2DqwkqUH0vmoJ503Vui7G7wwD718-QZrGpVeSUXzNgSPN2g5JG9FrgWeMnF` |
-| Versão servida hoje | **4** (V2.1) |
-| Versão da V2.1.1 | **5** — criada e no projeto, mas a implantação ainda aponta pra 4 |
-| Versão da V2.1.2 | **6** — código enviado e versão criada em 17/07; a implantação ainda aponta pra 4 |
+| Versão servida hoje | **6** (V2.1.2) — no ar desde 17/07, conferido com `list-deployments` |
+| Versão 5 (V2.1.1) | nunca chegou a ser apontada; a 6 já contém ela |
 
-A versão no ar (4) é a V2.1, que ainda tem o **Excluir quebrado** descrito na V2.1.2 abaixo.
-Falta **um passo** para a V2.1.2 entrar no ar — apontar a implantação para a versão 6:
+**Nada pendente de implantação.** Código, versão e implantação estão alinhados.
+
+Para publicar uma versão nova (o `clasp` **não** está instalado; use `npx`):
 
 ```
-npx @google/clasp update-deployment -V 6 -i AKfycbz8FqcbL2DqwkqUH0vmoJ503Vui7G7wwD718-QZrGpVeSUXzNgSPN2g5JG9FrgWeMnF
+npx @google/clasp push --force
+npx @google/clasp create-version "descricao"
+npx @google/clasp update-deployment -V <n> <deploymentId>
 ```
 
-ou no painel: Implantar → Gerenciar implantações → lápis → Versão 6 → Implantar.
-(A versão 5 / V2.1.1 nunca chegou a ser apontada; a 6 contém a 5 junto.)
+O `deploymentId` é **argumento posicional** — no clasp 3.x **não existe** a flag `-i`
+(o CLAUDE.md já errou isso uma vez). Confira depois com `npx @google/clasp list-deployments`.
+No painel, o mesmo: Implantar → Gerenciar implantações → lápis → versão → Implantar.
 
 - **V1:** motor reescrito do zero + interface portada (`App.html`) + moldura no GitHub Pages.
   Correção: ID sequencial **reservado no servidor** (`reservarProximoId`) evita pasta órfã.
