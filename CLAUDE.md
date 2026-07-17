@@ -112,12 +112,17 @@ no ar desde 10/07):
 | Implantação de produção | `AKfycbz8FqcbL2DqwkqUH0vmoJ503Vui7G7wwD718-QZrGpVeSUXzNgSPN2g5JG9FrgWeMnF` |
 | Versão servida hoje | **4** (V2.1) |
 | Versão da V2.1.1 | **5** — criada e no projeto, mas a implantação ainda aponta pra 4 |
-| Versão da V2.1.2 | ainda não criada — o código está no git, falta subir |
+| Versão da V2.1.2 | **6** — código enviado e versão criada em 17/07; a implantação ainda aponta pra 4 |
 
 A versão no ar (4) é a V2.1, que ainda tem o **Excluir quebrado** descrito na V2.1.2 abaixo.
-Para a V2.1.2 entrar no ar: `clasp push`, criar a versão nova e apontar a implantação pra ela
-(painel: Implantar → Gerenciar implantações → lápis → versão → Implantar; ou
-`clasp update-deployment <id> -V <n>`).
+Falta **um passo** para a V2.1.2 entrar no ar — apontar a implantação para a versão 6:
+
+```
+npx @google/clasp update-deployment -V 6 -i AKfycbz8FqcbL2DqwkqUH0vmoJ503Vui7G7wwD718-QZrGpVeSUXzNgSPN2g5JG9FrgWeMnF
+```
+
+ou no painel: Implantar → Gerenciar implantações → lápis → Versão 6 → Implantar.
+(A versão 5 / V2.1.1 nunca chegou a ser apontada; a 6 contém a 5 junto.)
 
 - **V1:** motor reescrito do zero + interface portada (`App.html`) + moldura no GitHub Pages.
   Correção: ID sequencial **reservado no servidor** (`reservarProximoId`) evita pasta órfã.
