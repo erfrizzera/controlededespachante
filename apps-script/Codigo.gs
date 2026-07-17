@@ -339,9 +339,10 @@ function gravarNaPastaDaAta_(tipo, base64Corpo, fileName, ataId, empresa, descri
 }
 
 /**
- * Recebe o arquivo em base64 (vindo da tela), grava na pasta da ata e devolve
- * o nome + a URL para a tela guardar. Só serve para arquivo PEQUENO — acima de
- * poucos MB o pedido não chega inteiro e a tela usa o caminho em pedaços abaixo.
+ * Recebe o arquivo em base64, grava na pasta da ata e devolve o nome + a URL.
+ * A tela NÃO chama mais isto: ela sobe direto pro Drive (seção 7b), porque o
+ * arquivo grande não cabe na memória daqui. Continua vivo como caminho de
+ * reserva de postPendencia/postReembolso, quando vier base64 e não vier link.
  */
 function uploadFileToDrive(base64Data, fileName, ataId, empresa, descricao) {
   try {
@@ -356,94 +357,54 @@ function uploadFileToDrive(base64Data, fileName, ataId, empresa, descricao) {
 
 
 /* ==========================================================================
- * 7b. UPLOAD EM PEDAÇOS — para arquivo grande (a ata chancelada é escaneada)
+ * 7b. UPLOAD DIRETO — o navegador manda o arquivo pro Drive sem passar por aqui
  * ==========================================================================
- * O google.script.run não carrega um base64 de dezenas de MB numa tacada só:
- * o pedido morre no caminho SEM resposta — nem sucesso, nem erro — e a tela
- * fica girando para sempre. Então a tela corta o arquivo em pedaços, manda um
- * de cada vez, e no fim pede para montar. Cada pedaço vira um arquivinho de
- * texto numa pasta temporária no Drive (a memória do Apps Script não guarda
- * nada entre duas chamadas).
+ * A ata chancelada volta escaneada da Junta e passa dos 60 MB. Não adianta
+ * cortar em pedaços e remontar aqui: para gravar, o Apps Script teria que
+ * carregar o arquivo INTEIRO na memória (o base64 ainda infla isso em 1/3), e
+ * ele morre bem antes — além do teto de 6 minutos por execução. Esse caminho
+ * em pedaços existiu na V2.1.1 e foi removido na V2.2: não aguentava o caso
+ * real que devia resolver.
+ *
+ * Agora a tela fala DIRETO com a API do Drive: pede aqui uma chave temporária
+ * (~1 h) e a pasta de destino, sobe os bytes por conta própria em sessão
+ * retomável, e no fim pede para liberar o link. Os bytes nunca passam por
+ * este script — por isso o tamanho deixou de ser problema.
  */
-
-var PASTA_PEDACOS = '_pedacos_temporarios';
-
-/** Pasta onde ficam as sessões de upload em andamento. */
-function getPastaPedacos_() {
-  var raiz = getPastaRaiz_();
-  var achadas = raiz.getFoldersByName(PASTA_PEDACOS);
-  return achadas.hasNext() ? achadas.next() : raiz.createFolder(PASTA_PEDACOS);
-}
-
-/** Pasta de UMA sessão de upload. criar=false exige que ela já exista. */
-function getPastaSessao_(sessao, criar) {
-  var temp = getPastaPedacos_();
-  var achadas = temp.getFoldersByName(sessao);
-  if (achadas.hasNext()) return achadas.next();
-  if (!criar) throw new Error('Sessão de upload não encontrada: ' + sessao);
-  return temp.createFolder(sessao);
-}
-
-/** Joga fora sessões abandonadas (mais de 1 dia) para não entulhar o Drive. */
-function limparPedacosAntigos_() {
-  try {
-    var limite = new Date().getTime() - 24 * 60 * 60 * 1000;
-    var velhas = getPastaPedacos_().getFolders();
-    while (velhas.hasNext()) {
-      var p = velhas.next();
-      if (p.getDateCreated().getTime() < limite) p.setTrashed(true);
-    }
-  } catch (e) { Logger.log('Limpeza de pedaços falhou: ' + e); }
-}
 
 /**
- * Guarda UM pedaço do base64. A tela chama isto N vezes, em ordem.
- * O nome do arquivinho é o índice zerado à esquerda, para a montagem ordenar certo.
+ * Prepara o envio direto: garante a pasta da ata e devolve a chave + o destino.
+ * A chave é do dono do sistema (o web app roda como USER_DEPLOYING), então o
+ * arquivo cai no Drive dele, como sempre foi.
  */
-function receberPedacoUpload(sessao, indice, pedaco) {
+function prepararUploadDireto(ataId, empresa, descricao) {
   try {
-    if (Number(indice) === 0) limparPedacosAntigos_();
-    var pasta = getPastaSessao_(String(sessao), true);
-    var nome = ('000000' + indice).slice(-6);
-
-    // Reenvio do mesmo pedaço: o novo manda, o antigo vai fora.
-    var antigos = pasta.getFilesByName(nome);
-    while (antigos.hasNext()) antigos.next().setTrashed(true);
-
-    pasta.createFile(Utilities.newBlob(pedaco, 'text/plain', nome));
-    return { ok: true, indice: Number(indice) };
+    var pasta = getOrCreateAtaFolder_(ataId, empresa, descricao);
+    return { token: ScriptApp.getOAuthToken(), folderId: pasta.getId() };
   } catch (e) {
-    Logger.log('Pedaço falhou: ' + e);
-    return { error: 'Erro ao guardar o pedaço ' + indice + ': ' + e.message };
+    Logger.log('prepararUploadDireto falhou: ' + e);
+    return { error: 'Erro ao preparar o envio: ' + e.message };
   }
 }
 
-/** Junta os pedaços na ordem, grava o arquivo final na pasta da ata e limpa a bagunça. */
-function montarArquivoUpload(sessao, tipo, fileName, total, ataId, empresa, descricao) {
-  var pasta;
+/**
+ * Fecha o envio direto: libera o link do arquivo que o navegador acabou de
+ * subir e devolve os dados que a tela guarda na planilha.
+ */
+function finalizarUploadDireto(fileId) {
   try {
-    pasta = getPastaSessao_(String(sessao), false);
-
-    var partes = [], contados = 0;
-    var arquivos = pasta.getFiles();
-    while (arquivos.hasNext()) {
-      var f = arquivos.next();
-      partes[parseInt(f.getName(), 10)] = f.getBlob().getDataAsString();
-      contados++;
-    }
-
-    // Faltou pedaço = arquivo corrompido. Melhor recusar do que gravar lixo.
-    if (contados !== Number(total)) {
-      return { error: 'Chegaram ' + contados + ' de ' + total + ' pedaços do arquivo. Tente enviar de novo.' };
-    }
-
-    var res = gravarNaPastaDaAta_(tipo, partes.join(''), fileName, ataId, empresa, descricao);
-    pasta.setTrashed(true);
-    return res;
+    var arquivo = DriveApp.getFileById(fileId);
+    arquivo.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    var pais = arquivo.getParents();
+    return {
+      name: arquivo.getName(),
+      url: arquivo.getUrl(),
+      id: arquivo.getId(),
+      folderUrl: pais.hasNext() ? pais.next().getUrl() : ''
+    };
   } catch (e) {
-    Logger.log('Montagem falhou: ' + e);
-    if (pasta) { try { pasta.setTrashed(true); } catch (e2) {} }
-    return { error: 'Erro ao montar o arquivo no servidor: ' + e.message };
+    Logger.log('finalizarUploadDireto falhou: ' + e);
+    return { error: 'O arquivo subiu, mas deu erro ao liberar o link: ' + e.message };
   }
 }
 

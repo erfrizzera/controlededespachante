@@ -1,5 +1,5 @@
 {
-  "version": "2.1.2",
+  "version": "2.2.0",
   "atualizadoEm": "2026-07-17",
-  "nota": "Correção: os botões Excluir (ata e pedido de reembolso) não faziam nada. O Chrome ignora a caixa de \"tem certeza?\" do navegador quando ela vem de dentro do iframe, e o app lia esse silêncio como \"não\". A pergunta agora é uma janela da própria tela."
+  "nota": "O Registrar agora aguenta a ata chancelada de verdade (dezenas de MB). O arquivo vai do navegador DIRETO pro Drive, em pedaços, com porcentagem na tela — antes ele passava pelo Apps Script, que não tem memória para isso e travava sem avisar."
 }

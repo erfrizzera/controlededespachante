@@ -1302,7 +1302,7 @@
         preview: document.getElementById('preview-ata-assinada'),
         nameLabel: document.getElementById('name-ata-assinada'),
         removeBtn: document.getElementById('remove-ata-assinada'),
-        value: "", base64: ""
+        value: "", file: null
       },
       registrada: {
         input: document.getElementById('file-ata-registrada'),
@@ -1310,7 +1310,7 @@
         preview: document.getElementById('preview-ata-registrada'),
         nameLabel: document.getElementById('name-ata-registrada'),
         removeBtn: document.getElementById('remove-ata-registrada'),
-        value: "", base64: ""
+        value: "", file: null
       },
       notaFiscal: {
         input: document.getElementById('file-nota-fiscal'),
@@ -1318,7 +1318,7 @@
         preview: document.getElementById('preview-nota-fiscal'),
         nameLabel: document.getElementById('name-nota-fiscal'),
         removeBtn: document.getElementById('remove-nota-fiscal'),
-        value: "", base64: ""
+        value: "", file: null
       },
       comprovante: {
         input: document.getElementById('file-comprovante-despesa'),
@@ -1326,7 +1326,7 @@
         preview: document.getElementById('preview-comprovante-despesa'),
         nameLabel: document.getElementById('name-comprovante-despesa'),
         removeBtn: document.getElementById('remove-comprovante-despesa'),
-        value: "", base64: ""
+        value: "", file: null
       }
     };
 
@@ -1412,16 +1412,16 @@
           if (e.target.files.length > 0) {
             const file = e.target.files[0];
             f.value = file.name;
+            // Guarda o próprio arquivo, não o base64: a leitura era assíncrona e,
+            // num PDF de dezenas de MB, quem salvasse rápido enviava vazio.
+            f.file = file;
             showFilePreview(key, file.name);
-            const reader = new FileReader();
-            reader.onload = function(evt) { f.base64 = evt.target.result; };
-            reader.readAsDataURL(file);
           }
         });
 
         f.removeBtn.addEventListener('click', (e) => {
           e.stopPropagation();
-          f.value = ""; f.base64 = ""; f.input.value = "";
+          f.value = ""; f.file = null; f.input.value = "";
           hideFilePreview(key);
         });
       });
@@ -1574,12 +1574,12 @@
       ataForm.reset();
       formMode.value = mode;
       
-      // Limpar arquivos temporários. Esconder o preview não basta: sem zerar o
-      // base64, o arquivo escolhido numa abertura anterior do modal subiria de
-      // novo, sozinho, na próxima gravação.
+      // Limpar arquivos temporários. Esconder o preview não basta: sem soltar o
+      // arquivo, o escolhido numa abertura anterior do modal subiria de novo,
+      // sozinho, na próxima gravação.
       Object.keys(fileInputs).forEach(key => {
         const f = fileInputs[key];
-        f.value = ""; f.base64 = ""; f.input.value = "";
+        f.value = ""; f.file = null; f.input.value = "";
         hideFilePreview(key);
       });
 
@@ -1849,23 +1849,23 @@
 
         // Se estiver rodando no Google Cloud, realiza o upload dos novos arquivos anexados
         if (state.isGoogleAppsScript) {
-          if (fileInputs.assinada.base64) {
-            const res = await uploadFilePromise(fileInputs.assinada.base64, fileInputs.assinada.value, id, empresa, descricao);
+          if (fileInputs.assinada.file) {
+            const res = await uploadFilePromise(fileInputs.assinada.file, fileInputs.assinada.value, id, empresa, descricao);
             urlAssinada = res.url;
             if (res.folderUrl) folderUrl = res.folderUrl;
           }
-          if (fileInputs.registrada.base64) {
-            const res = await uploadFilePromise(fileInputs.registrada.base64, fileInputs.registrada.value, id, empresa, descricao);
+          if (fileInputs.registrada.file) {
+            const res = await uploadFilePromise(fileInputs.registrada.file, fileInputs.registrada.value, id, empresa, descricao);
             urlRegistrada = res.url;
             if (res.folderUrl) folderUrl = res.folderUrl;
           }
-          if (fileInputs.notaFiscal.base64) {
-            const res = await uploadFilePromise(fileInputs.notaFiscal.base64, fileInputs.notaFiscal.value, id, empresa, descricao);
+          if (fileInputs.notaFiscal.file) {
+            const res = await uploadFilePromise(fileInputs.notaFiscal.file, fileInputs.notaFiscal.value, id, empresa, descricao);
             urlNF = res.url;
             if (res.folderUrl) folderUrl = res.folderUrl;
           }
-          if (fileInputs.comprovante.base64) {
-            const res = await uploadFilePromise(fileInputs.comprovante.base64, fileInputs.comprovante.value, id, empresa, descricao);
+          if (fileInputs.comprovante.file) {
+            const res = await uploadFilePromise(fileInputs.comprovante.file, fileInputs.comprovante.value, id, empresa, descricao);
             urlComprovante = res.url;
             if (res.folderUrl) folderUrl = res.folderUrl;
           }
@@ -1918,10 +1918,9 @@
       }
     }
 
-    // Cada pedaço do base64 mandado ao servidor. Múltiplo de 4 para não cortar
-    // um caractere do base64 no meio. Acima de ~3 MB o pedido único não chega.
-    const TAMANHO_PEDACO = 512 * 1024;
-    const LIMITE_ENVIO_UNICO = 3 * 1024 * 1024;
+    // Pedaço do envio direto ao Drive. A API exige múltiplo de 256 KB (menos o
+    // último). 8 MB equilibra: poucas idas e vindas, e um reenvio barato se cair.
+    const PEDACO_UPLOAD = 8 * 1024 * 1024;
 
     /**
      * Chama o servidor com rede de segurança. O google.script.run cru pode
@@ -1960,38 +1959,156 @@
       });
     }
 
+    /** fetch com prazo. Sem isto um pedido pendurado gira a tela para sempre. */
+    async function buscarComPrazo(url, opcoes, ms) {
+      const abortador = new AbortController();
+      const relogio = setTimeout(() => abortador.abort(), ms || 120000);
+      try {
+        return await fetch(url, Object.assign({}, opcoes, { signal: abortador.signal }));
+      } catch (e) {
+        if (e && e.name === 'AbortError') throw new Error('O Drive não respondeu a tempo. Verifique a internet e tente de novo.');
+        throw new Error('Não foi possível falar com o Drive: ' + ((e && e.message) || e));
+      } finally {
+        clearTimeout(relogio);
+      }
+    }
+
     /**
-     * Sobe um arquivo para a pasta da ata no Drive.
-     * Arquivo pequeno vai de uma vez; arquivo grande (a ata chancelada costuma
-     * ser escaneada, dezenas de MB) vai em pedaços — senão o pedido morre no
-     * caminho e a tela gira para sempre.
+     * Sobe um arquivo para a pasta da ata — do navegador DIRETO para o Drive.
+     *
+     * Por que não passar pelo Apps Script: a ata chancelada volta escaneada da
+     * Junta e passa dos 60 MB. Para gravar, o Apps Script precisaria do arquivo
+     * inteiro na memória (e o base64 ainda infla 1/3) — ele morre antes disso.
+     * Cortar em pedaços e remontar lá (V2.1.1) só adiava o problema: a remontagem
+     * carrega tudo de novo. Aqui os bytes vão direto, em sessão retomável, e o
+     * servidor só entra nas pontas: prepara a pasta e libera o link no fim.
      */
-    async function uploadFilePromise(base64, filename, ataId, empresa, descricao) {
-      const virgula = base64.indexOf(',');
-      const cabecalho = base64.substring(0, virgula);
-      const corpo = base64.substring(virgula + 1);
-      const tipo = cabecalho.substring(5, cabecalho.indexOf(';')) || 'application/pdf';
+    async function uploadFilePromise(file, filename, ataId, empresa, descricao) {
+      if (!file) throw new Error(`Nenhum arquivo escolhido para "${filename}".`);
 
-      let res;
-      if (corpo.length <= LIMITE_ENVIO_UNICO) {
-        res = await chamarServidor('uploadFileToDrive', [base64, filename, ataId, empresa, descricao]);
-      } else {
-        const sessao = `up_${ataId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-        const total = Math.ceil(corpo.length / TAMANHO_PEDACO);
-
-        for (let i = 0; i < total; i++) {
-          showLoading(`Enviando "${filename}" — ${Math.round((i / total) * 100)}% (${i + 1} de ${total})`);
-          await chamarServidor('receberPedacoUpload', [sessao, i, corpo.substr(i * TAMANHO_PEDACO, TAMANHO_PEDACO)]);
-        }
-
-        showLoading(`Montando "${filename}" no Drive…`);
-        res = await chamarServidor('montarArquivoUpload', [sessao, tipo, filename, total, ataId, empresa, descricao], 300000);
+      showLoading(`Preparando o envio de "${filename}"…`);
+      const prep = await chamarServidor('prepararUploadDireto', [ataId, empresa, descricao]);
+      if (!prep || !prep.token || !prep.folderId) {
+        throw new Error('O servidor não devolveu a autorização para subir o arquivo.');
       }
 
+      // 1) Abre a sessão de envio e pega o endereço para onde mandar os bytes.
+      const abertura = await buscarComPrazo(
+        'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + prep.token,
+            'Content-Type': 'application/json; charset=UTF-8'
+          },
+          body: JSON.stringify({
+            name: filename,
+            parents: [prep.folderId],
+            mimeType: file.type || 'application/pdf'
+          })
+        }
+      );
+      if (!abertura.ok) {
+        throw new Error(`O Drive recusou o envio de "${filename}" (código ${abertura.status}).`);
+      }
+
+      // O endereço da sessão vem no cabeçalho Location. O navegador só consegue
+      // lê-lo se o Google o expuser ao nosso domínio (regra de CORS) — e isso não
+      // deu para confirmar antes de publicar. Se vier vazio, vai de uma tacada só:
+      // o navegador aguenta mandar dezenas de MB num pedido (quem não aguentava
+      // era o Apps Script). Perde-se a barra de progresso e o retomar, não o envio.
+      const enderecoSessao = abertura.headers.get('Location');
+      if (!enderecoSessao) {
+        return await subirDeUmaVez(file, filename, prep);
+      }
+
+      // 2) Manda os bytes em pedaços. O Drive confirma até onde recebeu; se ele
+      //    recebeu menos do que mandamos, continuamos de onde ele parou.
+      let enviado = 0;
+      let dadosFinais = null;
+      while (enviado < file.size) {
+        const fim = Math.min(enviado + PEDACO_UPLOAD, file.size);
+        showLoading(`Enviando "${filename}" — ${Math.round((enviado / file.size) * 100)}% de ${formatarTamanho(file.size)}`);
+
+        const resposta = await buscarComPrazo(enderecoSessao, {
+          method: 'PUT',
+          headers: { 'Content-Range': `bytes ${enviado}-${fim - 1}/${file.size}` },
+          body: file.slice(enviado, fim)
+        }, 300000);
+
+        if (resposta.status === 308) {
+          // Ainda falta. O cabeçalho Range diz o último byte já aceito.
+          const aceito = resposta.headers.get('Range');
+          const ate = aceito && aceito.match(/bytes=0-(\d+)/);
+          enviado = ate ? Number(ate[1]) + 1 : fim;
+        } else if (resposta.ok) {
+          dadosFinais = await resposta.json();
+          enviado = file.size;
+        } else {
+          throw new Error(`O envio de "${filename}" falhou no Drive (código ${resposta.status}).`);
+        }
+      }
+
+      if (!dadosFinais || !dadosFinais.id) {
+        throw new Error(`O Drive não confirmou a gravação de "${filename}".`);
+      }
+
+      // 3) O servidor libera o link e devolve o que a planilha guarda.
+      showLoading(`Finalizando "${filename}"…`);
+      const res = await chamarServidor('finalizarUploadDireto', [dadosFinais.id]);
       if (!res || !res.url) {
-        throw new Error(`O Google não devolveu o link de "${filename}". O arquivo pode não ter sido salvo.`);
+        throw new Error(`O arquivo "${filename}" subiu, mas o Google não devolveu o link.`);
       }
       return res;
+    }
+
+    /**
+     * Reserva: manda metadados + bytes num pedido só (multipart), sem sessão e
+     * sem precisar ler cabeçalho de resposta. Usada quando o Location não vem.
+     */
+    async function subirDeUmaVez(file, filename, prep) {
+      const limite = 'ata' + Math.random().toString(36).slice(2) + Date.now();
+      const tipo = file.type || 'application/pdf';
+      const meta = JSON.stringify({ name: filename, parents: [prep.folderId], mimeType: tipo });
+
+      const corpo = new Blob([
+        `--${limite}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n`,
+        `--${limite}\r\nContent-Type: ${tipo}\r\n\r\n`,
+        file,
+        `\r\n--${limite}--`
+      ]);
+
+      showLoading(`Enviando "${filename}" (${formatarTamanho(file.size)}) — isso pode demorar…`);
+      const resposta = await buscarComPrazo(
+        'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + prep.token,
+            'Content-Type': `multipart/related; boundary=${limite}`
+          },
+          body: corpo
+        },
+        600000
+      );
+      if (!resposta.ok) {
+        throw new Error(`O envio de "${filename}" falhou no Drive (código ${resposta.status}).`);
+      }
+      const dados = await resposta.json();
+      if (!dados || !dados.id) throw new Error(`O Drive não confirmou a gravação de "${filename}".`);
+
+      showLoading(`Finalizando "${filename}"…`);
+      const res = await chamarServidor('finalizarUploadDireto', [dados.id]);
+      if (!res || !res.url) {
+        throw new Error(`O arquivo "${filename}" subiu, mas o Google não devolveu o link.`);
+      }
+      return res;
+    }
+
+    /** 72351744 → "69 MB". Só para a mensagem na tela não assustar. */
+    function formatarTamanho(bytes) {
+      if (bytes >= 1024 * 1024) return Math.round(bytes / (1024 * 1024)) + ' MB';
+      return Math.max(1, Math.round(bytes / 1024)) + ' KB';
     }
 
     // Pede ao servidor o próximo ID sequencial (0001, 0002…).
@@ -2582,7 +2699,7 @@
     };
 
     // ===== V2: Conversa de Pendência =====
-    let pendenciaFile = { value: "", base64: "" };
+    let pendenciaFile = { value: "", file: null };
     let pendenciaAtaAtual = null;
 
     function setupPendencia() {
@@ -2610,14 +2727,12 @@
           document.getElementById('preview-pendencia').classList.remove('hidden');
           dz.querySelector('.file-icon').classList.add('hidden');
           dz.querySelector('.dropzone-text').classList.add('hidden');
-          const r = new FileReader();
-          r.onload = (ev) => pendenciaFile.base64 = ev.target.result;
-          r.readAsDataURL(f);
+          pendenciaFile.file = f;
         }
       });
       document.getElementById('remove-pendencia').addEventListener('click', (e) => {
         e.stopPropagation();
-        pendenciaFile = { value: "", base64: "" };
+        pendenciaFile = { value: "", file: null };
         inp.value = "";
         document.getElementById('preview-pendencia').classList.add('hidden');
         dz.querySelector('.file-icon').classList.remove('hidden');
@@ -2627,7 +2742,7 @@
 
     window.openPendenciaModal = function(id) {
       pendenciaAtaAtual = id;
-      pendenciaFile = { value: "", base64: "" };
+      pendenciaFile = { value: "", file: null };
       const ata = state.atas.find(a => a.id === id);
       const modal = document.getElementById('pendencia-modal');
 
@@ -2702,9 +2817,9 @@
         // O anexo sobe ANTES, sozinho (em pedaços, se for grande), e ao servidor
         // vai só o link — o base64 inteiro dentro do pedido não aguenta o tranco.
         let arquivoUrl = '';
-        if (pendenciaFile.base64 && pendenciaFile.value) {
+        if (pendenciaFile.file && pendenciaFile.value) {
           const ata = state.atas.find(a => a.id === id) || {};
-          const res = await uploadFilePromise(pendenciaFile.base64, pendenciaFile.value, id, ata.empresa || '', ata.descricao || '');
+          const res = await uploadFilePromise(pendenciaFile.file, pendenciaFile.value, id, ata.empresa || '', ata.descricao || '');
           arquivoUrl = res.url;
         }
 
@@ -2723,7 +2838,7 @@
     }
 
     // ===== V2.1: Reembolsos (vários pedidos por ata) =====
-    let reembolsoFile = { value: "", base64: "" };
+    let reembolsoFile = { value: "", file: null };
     let reembolsoAtaAtual = null;
 
     function setupReembolso() {
@@ -2749,9 +2864,7 @@
           document.getElementById('preview-reembolso').classList.remove('hidden');
           dz.querySelector('.file-icon').classList.add('hidden');
           dz.querySelector('.dropzone-text').classList.add('hidden');
-          const r = new FileReader();
-          r.onload = (ev) => reembolsoFile.base64 = ev.target.result;
-          r.readAsDataURL(f);
+          reembolsoFile.file = f;
         }
       });
       document.getElementById('remove-reembolso').addEventListener('click', (e) => {
@@ -2761,7 +2874,7 @@
     }
 
     function limparAnexoReembolso() {
-      reembolsoFile = { value: "", base64: "" };
+      reembolsoFile = { value: "", file: null };
       const inp = document.getElementById('file-reembolso');
       const dz = document.getElementById('dropzone-reembolso');
       inp.value = "";
@@ -2854,9 +2967,9 @@
       try {
         // Mesma ideia da pendência: o anexo sobe primeiro, o pedido leva só o link.
         let arquivoUrl = '';
-        if (reembolsoFile.base64) {
+        if (reembolsoFile.file) {
           const ata = state.atas.find(a => a.id === id) || {};
-          const res = await uploadFilePromise(reembolsoFile.base64, reembolsoFile.value, id, ata.empresa || '', ata.descricao || '');
+          const res = await uploadFilePromise(reembolsoFile.file, reembolsoFile.value, id, ata.empresa || '', ata.descricao || '');
           arquivoUrl = res.url;
         }
 

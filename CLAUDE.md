@@ -93,6 +93,8 @@ Controle de Despachante/
 ├── README.md            ← visão geral + roadmap
 ├── version.json         ← fonte única da versão (Flufa)
 ├── index.html           ← MOLDURA (GitHub Pages) que embute o app do Apps Script
+├── testes/
+│   └── upload.test.js   ← único teste: o upload grande (node testes/upload.test.js)
 └── apps-script/         ← o MOTOR (enviado ao Apps Script via clasp ou copiar/colar)
     ├── appsscript.json  ← manifesto (acesso anônimo, roda como dono)
     ├── Codigo.gs        ← backend: CRUD, Drive, e-mail, auth
@@ -101,7 +103,7 @@ Controle de Despachante/
 
 ## Status
 
-**V2.1.2 no código (2026-07-17).** Endereço: https://erfrizzera.github.io/controlededespachante/
+**V2.2.0 no código (2026-07-17).** Endereço: https://erfrizzera.github.io/controlededespachante/
 
 Estado real da implantação (conferido com `clasp list-deployments` em 2026-07-17 — o texto
 anterior aqui dizia que a V2.1 não tinha subido, e **estava errado**; ela é a versão 4 e está
@@ -110,8 +112,8 @@ no ar desde 10/07):
 | Onde | O quê |
 |---|---|
 | Implantação de produção | `AKfycbz8FqcbL2DqwkqUH0vmoJ503Vui7G7wwD718-QZrGpVeSUXzNgSPN2g5JG9FrgWeMnF` |
-| Versão servida hoje | **6** (V2.1.2) — no ar desde 17/07, conferido com `list-deployments` |
-| Versão 5 (V2.1.1) | nunca chegou a ser apontada; a 6 já contém ela |
+| Versão servida hoje | **7** (V2.2.0) — no ar desde 17/07, conferido com `list-deployments` |
+| Versões 5 e 6 | passos intermediários do mesmo dia; a 7 contém tudo |
 
 **Nada pendente de implantação.** Código, versão e implantação estão alinhados.
 
@@ -147,5 +149,24 @@ No painel, o mesmo: Implantar → Gerenciar implantações → lápis → versã
   na própria tela, devolve Promise —, irmã do `avisar()` da V2.1.1; os `alert()` que sobravam
   também viraram `avisar()`. **Não sobrou nenhuma chamada a `alert`/`confirm`/`prompt`** no
   `App.html`: dentro do iframe elas não funcionam, então não são uma opção aqui.
+- **V2.2:** o **Registrar** travava com a ata chancelada real (**69 MB**, escaneada). O upload
+  em pedaços da V2.1.1 **não resolvia**: para gravar, o Apps Script teria que carregar o
+  arquivo inteiro na memória (~300 MB de pico, com o base64 inflando 1/3), muito além do que
+  ele aguenta e do teto de 6 min por execução. Agora o navegador fala **direto com a API do
+  Drive** (sessão retomável, pedaços de 8 MB, porcentagem na tela); o Apps Script só prepara a
+  pasta (`prepararUploadDireto`) e libera o link no fim (`finalizarUploadDireto`) — **os bytes
+  não passam mais por ele**, então tamanho deixou de ser problema. A máquina de pedaços do
+  servidor foi removida. A tela também guarda o **`File`** em vez do base64: o `readAsDataURL`
+  era assíncrono e, num PDF grande, quem salvasse rápido enviava **vazio, sem erro**.
+  - **Preço a pagar:** o navegador recebe uma **chave temporária do Google** (~1 h, do dono do
+    sistema). É o que permite falar direto com o Drive. Aceito conscientemente: sem isso não há
+    arquivo grande.
+  - **Não confirmado antes de publicar:** se o Google expõe o cabeçalho `Location` (o endereço
+    da sessão) ao nosso domínio. Se não expuser, o código cai sozinho no envio de **uma tacada
+    só** (`subirDeUmaVez`) — perde a porcentagem e o retomar, não o envio.
+- **Testes:** `node testes/upload.test.js` — o **único** teste do projeto, e de propósito. O
+  upload grande só falha em produção, com arquivo de dezenas de MB; e a tela publicada não dá
+  para automatizar (o iframe aninhado do Apps Script não aceita clique de fora). Mexeu no
+  `uploadFilePromise`? Rode.
 - Segurança por perfil é **na tela** (esconde botões). Endurecer no backend fica pra depois,
   junto da pendência da **senha em texto puro** na aba `Usuarios`.
