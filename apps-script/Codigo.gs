@@ -32,7 +32,8 @@ var CABECALHO_ATAS = [
   'Arquivo: Comprovante de Despesa', // 14
   'Data de Conclusão',               // 15
   'Status Anterior',                 // 16
-  'Status Financeiro'                // 17  (trilha financeira, independente do Status da Junta)
+  'Status Financeiro',               // 17  (legado V2; a V3 usa a baixa por pedido na aba Reembolsos)
+  'Bola'                             // 18  (V3: com quem está a bola — 'Cobra' | 'Despachante')
 ];
 
 
@@ -122,6 +123,8 @@ function getAbaUsuarios_(planilha) {
  * ========================================================================== */
 
 function getAtas() {
+  ensureMigracaoV3_(); // uma vez só: destrava "Pendência" e semeia a Bola
+
   var aba = getAbaAtas_();
   var intervalo = aba.getDataRange();
   var dados = intervalo.getValues();
@@ -129,15 +132,21 @@ function getAtas() {
 
   var ricos = intervalo.getRichTextValues(); // links embutidos nas células
   var tz = aba.getParent().getSpreadsheetTimeZone() || 'America/Sao_Paulo';
+  var comVermelho = atasComReembolsoPendente_(); // { ataId: true } para o cifrão
 
   var atas = [];
   for (var i = 1; i < dados.length; i++) {
     var linha = dados[i];
     if (!linha[0]) continue;
     var rico = ricos[i];
+    var id = String(linha[0]);
+
+    // Bola: 'Cobra' | 'Despachante'. Sem valor gravado → nasce com o despachante.
+    var bola = String(linha[17] || '').trim();
+    if (bola !== 'Cobra' && bola !== 'Despachante') bola = 'Despachante';
 
     atas.push({
-      id:                String(linha[0]),
+      id:                id,
       empresa:           String(linha[1]),
       descricao:         String(linha[2]),
       dataEnvio:         formatarData_(linha[3], tz),
@@ -157,10 +166,59 @@ function getAtas() {
       urlComprovante:    lerLink_(rico[13]),
       dataConclusao:     formatarData_(linha[14], tz),
       statusAnterior:    String(linha[15] || ''),
-      statusFinanceiro:  String(linha[16] || '')
+      statusFinanceiro:  String(linha[16] || ''),
+      bola:              bola,
+      financeiroVermelho: !!comVermelho[id] // true = há pedido de reembolso sem baixa
     });
   }
   return atas;
+}
+
+/**
+ * V3: destrava atas que ficaram em "Pendência" (modelo antigo, congelava) e
+ * garante que toda ata tenha uma Bola. Roda UMA vez, guardado por Script Property.
+ * Idempotente: se rodar de novo, não faz nada.
+ */
+function ensureMigracaoV3_() {
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty('MIGRADO_V3') === 'ok') return;
+  try {
+    var aba = getAbaAtas_();
+    var dados = aba.getDataRange().getValues();
+    for (var i = 1; i < dados.length; i++) {
+      if (!dados[i][0]) continue;
+      var linha = i + 1;
+      var status = String(dados[i][4] || '');
+      // "Pendência"/"Pendência Cobra" volta ao status anterior (ou Enviado).
+      if (status === 'Pendência' || status === 'Pendência Cobra') {
+        var anterior = String(dados[i][15] || '') || 'Enviado';
+        aba.getRange(linha, 5).setValue(anterior);
+        aba.getRange(linha, 16).setValue('');
+      }
+      // Semeia a Bola no despachante quando estiver vazia.
+      var bola = String(dados[i][17] || '').trim();
+      if (bola !== 'Cobra' && bola !== 'Despachante') {
+        aba.getRange(linha, 18).setValue('Despachante');
+      }
+    }
+    props.setProperty('MIGRADO_V3', 'ok');
+  } catch (e) { Logger.log('Migração V3 falhou (tenta de novo no próximo load): ' + e); }
+}
+
+/** Conjunto de atas com ao menos um pedido de reembolso ainda SEM baixa. */
+function atasComReembolsoPendente_() {
+  var mapa = {};
+  try {
+    var aba = getAbaReembolsos_();
+    var dados = aba.getDataRange().getValues();
+    for (var i = 1; i < dados.length; i++) {
+      var id = String(dados[i][0] || '');
+      if (!id) continue;
+      var baixado = String(dados[i][6] || '').trim(); // coluna 7 = "Baixado Em"
+      if (!baixado) mapa[id] = true;
+    }
+  } catch (e) { Logger.log('atasComReembolsoPendente_ falhou: ' + e); }
+  return mapa;
 }
 
 
@@ -215,14 +273,17 @@ function saveAta(ata) {
   // ID final: mantém o existente, ou reserva um novo (segurança se vier vazio).
   var idFinal = ata.id || reservarProximoId();
 
-  var statusAntigo = '', dataEnvioAtual = null, dataProtocoloAtual = null, dataConclusaoAtual = null, statusFinanceiroAtual = '';
+  var statusAntigo = '', dataEnvioAtual = null, dataProtocoloAtual = null, dataConclusaoAtual = null, statusFinanceiroAtual = '', bolaAtual = '';
   if (linhaExistente !== -1) {
     statusAntigo          = String(dados[linhaExistente - 1][4] || '');
     dataEnvioAtual        = dados[linhaExistente - 1][3];
     dataProtocoloAtual    = dados[linhaExistente - 1][12];
     dataConclusaoAtual    = dados[linhaExistente - 1][14];
     statusFinanceiroAtual = String(dados[linhaExistente - 1][16] || '');
+    bolaAtual             = String(dados[linhaExistente - 1][17] || '');
   }
+  // Bola: ata nova nasce com o despachante; ata existente preserva a que tem.
+  var bolaFinal = (bolaAtual === 'Cobra' || bolaAtual === 'Despachante') ? bolaAtual : 'Despachante';
 
   // Data do Protocolo: automática quando o número aparece.
   var dataProtocolo = dataProtocoloAtual;
@@ -249,7 +310,8 @@ function saveAta(ata) {
     dataProtocolo || '', ata.arquivoComprovante || '', dataConclusao || '',
     ata.statusAnterior || '',
     (ata.statusFinanceiro !== undefined && ata.statusFinanceiro !== null && ata.statusFinanceiro !== '')
-      ? ata.statusFinanceiro : statusFinanceiroAtual
+      ? ata.statusFinanceiro : statusFinanceiroAtual,
+    bolaFinal
   ];
 
   var linhaAlvo;
@@ -340,9 +402,8 @@ function gravarNaPastaDaAta_(tipo, base64Corpo, fileName, ataId, empresa, descri
 
 /**
  * Recebe o arquivo em base64, grava na pasta da ata e devolve o nome + a URL.
- * A tela NÃO chama mais isto: ela sobe direto pro Drive (seção 7b), porque o
- * arquivo grande não cabe na memória daqui. Continua vivo como caminho de
- * reserva de postPendencia/postReembolso, quando vier base64 e não vier link.
+ * A tela NÃO chama mais isto: tudo sobe direto pro Drive (seção 7b) e manda só
+ * o link. Fica aqui como reserva/compatibilidade; sem chamadores hoje.
  */
 function uploadFileToDrive(base64Data, fileName, ataId, empresa, descricao) {
   try {
@@ -410,45 +471,9 @@ function finalizarUploadDireto(fileId) {
 
 
 /* ==========================================================================
- * 8. PENDÊNCIA — congela a ata em "Pendência" e depois restaura
+ * 8. (removido na V3) — a "Pendência" que congelava a ata deixou de existir.
+ * Agora a bola passa entre as partes pelo chat (seção 14: postDevolucao).
  * ========================================================================== */
-
-function toggleAtaPendency(id) {
-  var aba = getAbaAtas_();
-  var dados = aba.getDataRange().getValues();
-  var linha = -1;
-  for (var i = 1; i < dados.length; i++) {
-    if (String(dados[i][0]) === String(id)) { linha = i + 1; break; }
-  }
-  if (linha === -1) throw new Error('Ata não encontrada.');
-
-  var atual = String(dados[linha - 1][4] || '');
-  var anterior = String(dados[linha - 1][15] || '');
-
-  var novoStatus, novoAnterior;
-  if (atual === 'Pendência' || atual === 'Pendência Cobra') {
-    novoStatus = anterior || 'Enviado';
-    novoAnterior = '';
-  } else {
-    novoStatus = 'Pendência';
-    novoAnterior = atual;
-  }
-
-  aba.getRange(linha, 5).setValue(novoStatus);   // coluna Status
-  aba.getRange(linha, 16).setValue(novoAnterior);// coluna Status Anterior
-
-  try {
-    var rico = aba.getRange(linha, 12).getRichTextValue();
-    sendEmailsOnStatusChange_({
-      id: id,
-      empresa: String(dados[linha - 1][1] || ''),
-      descricao: String(dados[linha - 1][2] || ''),
-      folderUrl: rico ? (rico.getLinkUrl() || '') : ''
-    }, atual, novoStatus);
-  } catch (e) { Logger.log('E-mail pendência falhou: ' + e); }
-
-  return 'Sucesso';
-}
 
 
 /* ==========================================================================
@@ -701,10 +726,15 @@ function setStatusFinanceiro(ataId, novo) {
 
 
 /* ==========================================================================
- * 14. PENDÊNCIA COBRA (V2) — conversa com histórico (aba Pendencias)
- * ========================================================================== */
+ * 14. DEVOLUÇÕES (V3) — o chat entre as partes; cada mensagem passa a bola
+ * ==========================================================================
+ * A aba continua se chamando "Pendencias" (para não perder o histórico), mas a
+ * semântica mudou: não congela mais nada. Quem escreve está DEVOLVENDO a ação —
+ * a bola vai para o OUTRO lado. Cada linha pode ter vários anexos (JSON na
+ * coluna Arquivo).
+ */
 
-/** Aba "Pendencias": uma linha por mensagem da conversa. */
+/** Aba "Pendencias": uma linha por mensagem do chat/devolução. */
 function getAbaPendencias_(planilha) {
   planilha = planilha || getPlanilha_();
   var aba = planilha.getSheetByName('Pendencias');
@@ -717,7 +747,17 @@ function getAbaPendencias_(planilha) {
   return aba;
 }
 
-/** Devolve a conversa de pendência de uma ata, em ordem cronológica. */
+/** Lê a célula Arquivo (col 6) como lista [{nome,url}]: aceita JSON (novo) ou link único (antigo). */
+function lerArquivosCelula_(texto, rico) {
+  var t = String(texto || '').trim();
+  if (t.charAt(0) === '[') {
+    try { var arr = JSON.parse(t); if (Array.isArray(arr)) return arr; } catch (e) {}
+  }
+  if (t) return [{ nome: t, url: rico ? (rico.getLinkUrl() || '') : '' }];
+  return [];
+}
+
+/** Devolve o histórico do chat de uma ata, em ordem cronológica. */
 function getPendencias(ataId) {
   var aba = getAbaPendencias_();
   var intervalo = aba.getDataRange();
@@ -728,24 +768,22 @@ function getPendencias(ataId) {
   for (var i = 1; i < dados.length; i++) {
     if (String(dados[i][0]) !== String(ataId)) continue;
     msgs.push({
-      dataHora:   dados[i][1] instanceof Date ? Utilities.formatDate(dados[i][1], tz, 'dd/MM/yyyy HH:mm') : String(dados[i][1] || ''),
-      autor:      String(dados[i][2] || ''),
-      papel:      String(dados[i][3] || ''),
-      mensagem:   String(dados[i][4] || ''),
-      arquivo:    String(dados[i][5] || ''),
-      urlArquivo: ricos[i][5] ? (ricos[i][5].getLinkUrl() || '') : ''
+      dataHora: dados[i][1] instanceof Date ? Utilities.formatDate(dados[i][1], tz, 'dd/MM/yyyy HH:mm') : String(dados[i][1] || ''),
+      autor:    String(dados[i][2] || ''),
+      papel:    String(dados[i][3] || ''),
+      mensagem: String(dados[i][4] || ''),
+      arquivos: lerArquivosCelula_(dados[i][5], ricos[i][5])
     });
   }
   return msgs;
 }
 
 /**
- * Registra uma mensagem na conversa de pendência de uma ata.
- * dados = { ataId, autor, papel, mensagem, arquivoNome, base64, acao }
- * acao: 'abrir' (marca Pendência) | 'responder' | 'resolver' (volta ao status anterior).
- * O anexo (se houver) vai para a MESMA pasta da ata no Drive. Avisa por e-mail.
+ * Registra uma mensagem no chat e PASSA A BOLA para o outro lado.
+ * dados = { ataId, autor, papel, mensagem, arquivos:[{nome,url}] }
+ * Não congela status. A bola vira o contrário de quem escreveu (papel).
  */
-function postPendencia(dados) {
+function postDevolucao(dados) {
   var abaAtas = getAbaAtas_();
   var linhas = abaAtas.getDataRange().getValues();
   var linha = -1;
@@ -754,71 +792,51 @@ function postPendencia(dados) {
   }
   if (linha === -1) throw new Error('Ata não encontrada.');
 
-  var empresa     = String(linhas[linha - 1][1] || '');
-  var descricao   = String(linhas[linha - 1][2] || '');
-  var statusAtual = String(linhas[linha - 1][4] || '');
+  var empresa   = String(linhas[linha - 1][1] || '');
+  var descricao = String(linhas[linha - 1][2] || '');
+  var arquivos  = Array.isArray(dados.arquivos) ? dados.arquivos.filter(function (a) { return a && a.nome; }) : [];
 
-  // Anexo opcional → pasta da ata. A tela já subiu o arquivo (em pedaços, se
-  // for grande) e manda só o link; o base64 aqui é o caminho antigo, de reserva.
-  var arqNome = dados.arquivoNome || '', arqUrl = dados.arquivoUrl || '';
-  if (!arqUrl && dados.base64 && arqNome) {
-    var up = uploadFileToDrive(dados.base64, arqNome, dados.ataId, empresa, descricao);
-    if (up && up.url) arqUrl = up.url;
-  }
-
-  // Grava a mensagem (se houver texto ou anexo).
-  if (dados.mensagem || arqNome) {
+  // Grava a mensagem (se houver texto ou anexo). Anexos como JSON na coluna 6.
+  if (dados.mensagem || arquivos.length) {
     var abaP = getAbaPendencias_();
-    abaP.appendRow([dados.ataId, new Date(), dados.autor || '', dados.papel || '', dados.mensagem || '', arqNome]);
-    if (arqNome && arqUrl) setLinkCell_(abaP, abaP.getLastRow(), 6, arqNome, arqUrl);
+    abaP.appendRow([dados.ataId, new Date(), dados.autor || '', dados.papel || '', dados.mensagem || '', arquivos.length ? JSON.stringify(arquivos) : '']);
   }
 
-  // Ajusta o status da ata conforme a ação.
-  var novoStatus = statusAtual;
-  var estaPendente = (statusAtual === 'Pendência' || statusAtual === 'Pendência Cobra');
-  if (dados.acao === 'abrir' && !estaPendente) {
-    abaAtas.getRange(linha, 16).setValue(statusAtual); // guarda Status Anterior
-    abaAtas.getRange(linha, 5).setValue('Pendência');
-    novoStatus = 'Pendência';
-  } else if (dados.acao === 'resolver' && estaPendente) {
-    var anterior = String(linhas[linha - 1][15] || '') || 'Enviado';
-    abaAtas.getRange(linha, 5).setValue(anterior);
-    abaAtas.getRange(linha, 16).setValue('');
-    novoStatus = anterior;
-  }
+  // Passa a bola: quem escreveu devolve pro outro lado.
+  var papel = String(dados.papel || '').toLowerCase();
+  var novaBola = (papel === 'despachante') ? 'Cobra' : 'Despachante';
+  abaAtas.getRange(linha, 18).setValue(novaBola);
 
   // E-mail de aviso (falha em silêncio).
   try {
     var folderRico = abaAtas.getRange(linha, 12).getRichTextValue();
-    sendPendenciaEmail_({
+    sendDevolucaoEmail_({
       id: dados.ataId, empresa: empresa, descricao: descricao,
       folderUrl: folderRico ? (folderRico.getLinkUrl() || '') : '',
-      papel: dados.papel || '', mensagem: dados.mensagem || '', acao: dados.acao || 'responder'
+      papel: dados.papel || '', mensagem: dados.mensagem || '', novaBola: novaBola
     });
-  } catch (e) { Logger.log('E-mail pendência falhou: ' + e); }
+  } catch (e) { Logger.log('E-mail devolução falhou: ' + e); }
 
-  return { sucesso: true, novoStatus: novoStatus };
+  return { sucesso: true, bola: novaBola };
 }
 
-/** E-mail curto avisando de nova mensagem/ação na pendência. */
-function sendPendenciaEmail_(p) {
+/** E-mail curto avisando de nova devolução no chat. */
+function sendDevolucaoEmail_(p) {
   var emails = getNotificationEmails();
   if (!emails || emails.length === 0) return;
-  var titulo = p.acao === 'abrir' ? 'Nova Pendência'
-             : p.acao === 'resolver' ? 'Pendência resolvida'
-             : 'Nova resposta na pendência';
+  var titulo = 'Bola com ' + (p.novaBola === 'Cobra' ? 'a Cobra' : 'o despachante') + ' — Ata ' + p.id;
   var sistemaUrl = getSystemUrl_();
   var html =
     "<div style='font-family:Arial,sans-serif;max-width:600px;border:1px solid #cbd5e1;border-radius:12px;padding:24px;color:#0f172a;'>" +
-      "<h2 style='color:#1e3a8a;margin:0 0 4px;'>" + titulo + "</h2>" +
-      "<p style='color:#475569;margin:0 0 16px;font-size:13px;'>Ata " + p.id + " — " + p.empresa + "</p>" +
-      (p.mensagem ? "<div style='background:#f8fafc;border-left:4px solid #ef4444;border-radius:8px;padding:14px;margin-bottom:16px;'><strong>" + p.papel + ":</strong> " + p.mensagem + "</div>" : "") +
+      "<h2 style='color:#1e3a8a;margin:0 0 4px;'>Nova devolução</h2>" +
+      "<p style='color:#475569;margin:0 0 16px;font-size:13px;'>Ata " + p.id + " — " + p.empresa + " · agora a bola está com <strong>" + (p.novaBola === 'Cobra' ? 'a Cobra' : 'o despachante') + "</strong></p>" +
+      (p.mensagem ? "<div style='background:#f8fafc;border-left:4px solid #2563eb;border-radius:8px;padding:14px;margin-bottom:16px;'><strong>" + p.papel + ":</strong> " + p.mensagem + "</div>" : "") +
       "<div style='text-align:center;'>" +
         (p.folderUrl ? "<a href='" + p.folderUrl + "' style='display:inline-block;background:#10b981;color:#fff;padding:10px 18px;text-decoration:none;border-radius:8px;font-weight:600;font-size:13px;margin-right:8px;'>📂 Pasta da ata</a>" : "") +
         (sistemaUrl ? "<a href='" + sistemaUrl + "' style='display:inline-block;background:#2563eb;color:#fff;padding:10px 18px;text-decoration:none;border-radius:8px;font-weight:600;font-size:13px;'>🖥️ Abrir sistema</a>" : "") +
       "</div>" +
     "</div>";
-  MailApp.sendEmail({ to: emails.join(','), subject: titulo + ': Ata ' + p.id + ' — ' + p.empresa, htmlBody: html, body: titulo + ' — Ata ' + p.id, name: 'Cobra Brasil', noReply: true });
+  MailApp.sendEmail({ to: emails.join(','), subject: titulo, htmlBody: html, body: titulo, name: 'Cobra Brasil', noReply: true });
 }
 
 
@@ -830,20 +848,23 @@ function sendPendenciaEmail_(p) {
  * a guardar a SOMA dos pedidos, para os totais da tela continuarem certos.
  */
 
-/** Aba "Reembolsos": uma linha por pedido de reembolso. */
+/** Aba "Reembolsos": uma linha por pedido. Coluna 7 "Baixado Em" = quando foi pago. */
 function getAbaReembolsos_(planilha) {
   planilha = planilha || getPlanilha_();
   var aba = planilha.getSheetByName('Reembolsos');
   if (!aba) {
     aba = planilha.insertSheet('Reembolsos');
-    aba.getRange(1, 1, 1, 6).setValues([['ID da Ata', 'Data/Hora', 'Autor', 'Valor', 'Justificativa', 'Arquivo']])
+    aba.getRange(1, 1, 1, 7).setValues([['ID da Ata', 'Data/Hora', 'Autor', 'Valor', 'Justificativa', 'Arquivo', 'Baixado Em']])
       .setBackground('#1A365D').setFontColor('#FFFFFF').setFontWeight('bold');
     aba.setFrozenRows(1);
+  } else if (aba.getMaxColumns() < 7 || !aba.getRange(1, 7).getValue()) {
+    if (aba.getMaxColumns() < 7) aba.insertColumnsAfter(aba.getMaxColumns(), 7 - aba.getMaxColumns());
+    aba.getRange(1, 7).setValue('Baixado Em').setBackground('#1A365D').setFontColor('#FFFFFF').setFontWeight('bold');
   }
   return aba;
 }
 
-/** Devolve os pedidos de reembolso de uma ata, em ordem cronológica. */
+/** Devolve os pedidos de reembolso de uma ata (com anexos e estado de baixa). */
 function getReembolsos(ataId) {
   var aba = getAbaReembolsos_();
   var intervalo = aba.getDataRange();
@@ -853,14 +874,16 @@ function getReembolsos(ataId) {
   var itens = [];
   for (var i = 1; i < dados.length; i++) {
     if (String(dados[i][0]) !== String(ataId)) continue;
+    var baixadoEm = dados[i][6];
     itens.push({
       linha:        i + 1,
       dataHora:     dados[i][1] instanceof Date ? Utilities.formatDate(dados[i][1], tz, 'dd/MM/yyyy HH:mm') : String(dados[i][1] || ''),
       autor:        String(dados[i][2] || ''),
       valor:        Number(dados[i][3]) || 0,
       justificativa:String(dados[i][4] || ''),
-      arquivo:      String(dados[i][5] || ''),
-      urlArquivo:   ricos[i][5] ? (ricos[i][5].getLinkUrl() || '') : ''
+      arquivos:     lerArquivosCelula_(dados[i][5], ricos[i][5]),
+      baixado:      !!(baixadoEm && String(baixadoEm).trim()),
+      baixadoEm:    baixadoEm instanceof Date ? Utilities.formatDate(baixadoEm, tz, 'dd/MM/yyyy') : String(baixadoEm || '')
     });
   }
   return itens;
@@ -885,9 +908,9 @@ function recomputarTotalReembolso_(ataId) {
 
 /**
  * Registra um novo pedido de reembolso.
- * dados = { ataId, autor, valor, justificativa, arquivoNome, base64 }
- * O anexo vai para a MESMA pasta da ata no Drive. Recalcula o total e, se ainda
- * não houver trilha financeira, marca "Custos lançados".
+ * dados = { ataId, autor, valor, justificativa, arquivos:[{nome,url}] }
+ * Os anexos já subiram direto pro Drive; aqui só guardamos os links (JSON).
+ * O pedido nasce SEM baixa (coluna 7 vazia) — é isso que acende o cifrão.
  */
 function postReembolso(dados) {
   var abaAtas = getAbaAtas_();
@@ -898,27 +921,37 @@ function postReembolso(dados) {
   }
   if (linha === -1) throw new Error('Ata não encontrada.');
 
-  var empresa   = String(linhas[linha - 1][1] || '');
-  var descricao = String(linhas[linha - 1][2] || '');
-
-  // Anexo → pasta da ata. Mesma ideia da pendência: a tela sobe antes e manda o link.
-  var arqNome = dados.arquivoNome || '', arqUrl = dados.arquivoUrl || '';
-  if (!arqUrl && dados.base64 && arqNome) {
-    var up = uploadFileToDrive(dados.base64, arqNome, dados.ataId, empresa, descricao);
-    if (up && up.url) arqUrl = up.url;
-  }
+  var arquivos = Array.isArray(dados.arquivos) ? dados.arquivos.filter(function (a) { return a && a.nome; }) : [];
 
   var abaR = getAbaReembolsos_();
-  abaR.appendRow([dados.ataId, new Date(), dados.autor || '', Number(dados.valor) || 0, dados.justificativa || '', arqNome]);
-  if (arqNome && arqUrl) setLinkCell_(abaR, abaR.getLastRow(), 6, arqNome, arqUrl);
+  abaR.appendRow([dados.ataId, new Date(), dados.autor || '', Number(dados.valor) || 0, dados.justificativa || '', arquivos.length ? JSON.stringify(arquivos) : '', '']);
 
   var total = recomputarTotalReembolso_(dados.ataId);
-
-  // Se a trilha financeira ainda está vazia, entra em "Custos lançados".
-  var statusFin = String(linhas[linha - 1][16] || '');
-  if (!statusFin) abaAtas.getRange(linha, 17).setValue('Custos lançados');
-
   return { sucesso: true, total: total };
+}
+
+/** Dá baixa num pedido (marca como pago). Só faz sentido pra Cobra/admin (checado na tela). */
+function darBaixaReembolso(ataId, linha) {
+  var aba = getAbaReembolsos_();
+  var dados = aba.getDataRange().getValues();
+  var alvo = Number(linha);
+  if (alvo >= 2 && alvo <= dados.length && String(dados[alvo - 1][0]) === String(ataId)) {
+    aba.getRange(alvo, 7).setValue(new Date());
+    return 'Sucesso';
+  }
+  return 'Não encontrado';
+}
+
+/** Reabre um pedido baixado por engano (limpa a baixa). */
+function reabrirReembolso(ataId, linha) {
+  var aba = getAbaReembolsos_();
+  var dados = aba.getDataRange().getValues();
+  var alvo = Number(linha);
+  if (alvo >= 2 && alvo <= dados.length && String(dados[alvo - 1][0]) === String(ataId)) {
+    aba.getRange(alvo, 7).setValue('');
+    return 'Sucesso';
+  }
+  return 'Não encontrado';
 }
 
 /** Exclui um pedido de reembolso (pela linha) e recalcula o total. */

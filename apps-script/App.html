@@ -505,6 +505,37 @@
     .badge-fin-none     { background-color: rgba(100,116,139,.10); color: var(--text-muted); border: 1px solid var(--border-color); }
     .status-cell-stack  { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 
+    /* ===== "Com a bola": toggle liga-desliga de quem é a vez =====
+       Compacto, dentro da coluna Status. O botão desliza pro lado do responsável:
+       esquerda = Cobra (azul), direita = despachante (cinza). Na pendência não
+       aparece — o selo "Pendência" já diz que parou. */
+    .bola-wrap { display: inline-flex; align-items: center; gap: 7px; }
+    .bola-switch { width: 38px; height: 20px; border-radius: 20px; position: relative; display: inline-block; border: 1px solid; flex-shrink: 0; }
+    .bola-knob { position: absolute; top: 2px; width: 14px; height: 14px; border-radius: 50%; transition: left .2s ease, right .2s ease; }
+    .bola-nome { font-size: 10px; font-weight: 700; }
+    .bola-cobra .bola-switch { background: rgba(37,99,235,.15); border-color: rgba(37,99,235,.3); }
+    .bola-cobra .bola-knob { left: 2px; background: var(--color-primary); }
+    .bola-cobra .bola-nome { color: var(--color-primary); }
+    .bola-despachante .bola-switch { background: rgba(148,163,184,.15); border-color: rgba(148,163,184,.35); }
+    .bola-despachante .bola-knob { right: 2px; background: var(--text-secondary); }
+    .bola-despachante .bola-nome { color: var(--text-secondary); }
+    .bola-fim { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: var(--text-muted); }
+    .bola-fim .material-icons-round { font-size: 12px; color: var(--status-registrada); }
+
+    /* ===== V3: cifrão financeiro, anexos múltiplos e baixa ===== */
+    .btn-icon.fin-vermelho { position: relative; color: var(--color-danger); }
+    .btn-icon.fin-vermelho::after { content: ''; position: absolute; top: 3px; right: 3px; width: 8px; height: 8px; border-radius: 50%; background: var(--color-danger); border: 1.5px solid var(--bg-sidebar); }
+    .anexo-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .anexo-chip { font-size: 11px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; padding: 4px 8px; display: inline-flex; align-items: center; gap: 5px; color: var(--text-secondary); }
+    .anexo-chip button { background: none; border: none; color: var(--text-muted); cursor: pointer; display: inline-flex; padding: 0; }
+    .anexo-chip button:hover { color: var(--color-danger); }
+    .fin-alerta { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--color-danger); background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.25); border-radius: 8px; padding: 8px 12px; margin-bottom: 14px; }
+    .fin-selo { font-size: 9px; font-weight: 700; text-transform: uppercase; padding: 3px 8px; border-radius: 20px; display: inline-flex; align-items: center; gap: 3px; }
+    .fin-selo-aguardando { color: var(--color-danger); background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.25); }
+    .fin-selo-pago { color: var(--status-registrada); background: rgba(16,185,129,.12); border: 1px solid rgba(16,185,129,.25); }
+    .reembolso-pendente { border-left: 3px solid var(--color-danger); }
+    .reembolso-baixado { opacity: .7; }
+
     /* ===== V2: conversa de pendência ===== */
     .conversa { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; flex-grow: 1; padding-right: 4px; margin-bottom: 16px; }
     .msg-bolha { background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 14px; }
@@ -685,7 +716,6 @@
                 <option value="Em Protocolo">Em Protocolo</option>
                 <option value="Registrada">Registrada</option>
                 <option value="Concluído">Concluído</option>
-                <option value="Pendência">Pendência</option>
               </select>
             </div>
           </div>
@@ -699,7 +729,6 @@
                   <th>Protocolo</th>
                   <th>Tempo de Processo</th>
                   <th>Status</th>
-                  <th>Arquivos</th>
                   <th>Ações</th>
                 </tr>
               </thead>
@@ -886,56 +915,45 @@
     </div>
   </div>
 
-  <!-- Modal: Conversa de Pendência (V2) -->
+  <!-- Modal: Chat / Devolução (V3) — cada mensagem passa a bola pro outro lado -->
   <div class="modal-overlay" id="pendencia-modal">
     <div class="modal-container">
       <header class="modal-header">
-        <h3 id="pendencia-title">Pendência</h3>
+        <h3 id="pendencia-title">Chat</h3>
         <button class="btn-close" id="btn-close-pendencia"><span class="material-icons-round">close</span></button>
       </header>
 
+      <p style="font-size: 11px; color: var(--text-secondary); margin-bottom: 12px;">Ao enviar, você <strong>devolve a bola</strong> pro outro lado.</p>
       <div class="conversa" id="pendencia-conversa"></div>
 
       <form id="pendencia-form" style="border-top: 1px solid var(--border-color); padding-top: 16px;">
         <input type="hidden" id="pendencia-ata-id">
         <div class="form-group">
-          <label for="pendencia-msg" id="pendencia-msg-label">Descreva a pendência</label>
+          <label for="pendencia-msg" id="pendencia-msg-label">Escreva o que fez / o que precisa</label>
           <textarea id="pendencia-msg" class="form-control" rows="3" placeholder="Escreva aqui..."></textarea>
         </div>
         <div class="file-dropzone" id="dropzone-pendencia" style="margin-top: 8px;">
           <span class="material-icons-round file-icon">attach_file</span>
-          <p class="dropzone-text">Anexar documento (opcional)</p>
-          <input type="file" id="file-pendencia" class="hidden-file-input">
-          <div class="file-preview hidden" id="preview-pendencia">
-            <span class="material-icons-round preview-icon">description</span>
-            <span class="file-name" id="name-pendencia"></span>
-            <button type="button" class="btn-remove-file" id="remove-pendencia"><span class="material-icons-round">cancel</span></button>
-          </div>
+          <p class="dropzone-text">Anexar documento(s) — pode vários (opcional)</p>
+          <input type="file" id="file-pendencia" class="hidden-file-input" multiple>
         </div>
+        <div class="anexo-chips" id="chips-pendencia"></div>
         <footer class="modal-footer">
-          <button type="button" class="btn btn-secondary" id="btn-resolver-pendencia">Resolver pendência</button>
-          <button type="submit" class="btn btn-primary" id="btn-enviar-pendencia">Enviar</button>
+          <button type="submit" class="btn btn-primary" id="btn-enviar-pendencia">Enviar e devolver</button>
         </footer>
       </form>
     </div>
   </div>
 
-  <!-- Modal: Reembolsos (V2.1) — vários pedidos, cada um justificado + anexo -->
+  <!-- Modal: Financeiro (V3) — NF/reembolsos com baixa por pedido -->
   <div class="modal-overlay" id="reembolso-modal">
     <div class="modal-container">
       <header class="modal-header">
-        <h3 id="reembolso-title">Reembolsos</h3>
+        <h3 id="reembolso-title">Financeiro</h3>
         <button class="btn-close" id="btn-close-reembolso"><span class="material-icons-round">close</span></button>
       </header>
 
-      <!-- Honorários do despachante: trilha à parte dos reembolsos -->
-      <div class="form-group" style="margin-bottom: 16px;">
-        <label for="reembolso-honorarios">Honorários Despachante (R$)</label>
-        <div style="display: flex; gap: 8px;">
-          <input type="number" step="0.01" id="reembolso-honorarios" class="form-control" placeholder="0.00" style="flex-grow: 1;">
-          <button type="button" class="btn btn-secondary" id="btn-salvar-honorarios">Salvar</button>
-        </div>
-      </div>
+      <div id="reembolso-alerta" class="fin-alerta hidden"><span class="material-icons-round" style="font-size:14px;">error_outline</span> <span id="reembolso-alerta-txt"></span></div>
 
       <div class="form-section-divider" style="margin-top: 0;">Pedidos de reembolso</div>
       <div class="reembolso-lista" id="reembolso-lista"></div>
@@ -956,18 +974,23 @@
         </div>
         <div class="file-dropzone" id="dropzone-reembolso">
           <span class="material-icons-round file-icon">receipt_long</span>
-          <p class="dropzone-text">Anexar NF / comprovante (PDF ou imagem)</p>
-          <input type="file" id="file-reembolso" accept="application/pdf,image/*" class="hidden-file-input">
-          <div class="file-preview hidden" id="preview-reembolso">
-            <span class="material-icons-round preview-icon">receipt</span>
-            <span class="file-name" id="name-reembolso"></span>
-            <button type="button" class="btn-remove-file" id="remove-reembolso"><span class="material-icons-round">cancel</span></button>
-          </div>
+          <p class="dropzone-text">Arraste a NF e os comprovantes — pode vários</p>
+          <input type="file" id="file-reembolso" accept="application/pdf,image/*" class="hidden-file-input" multiple>
         </div>
+        <div class="anexo-chips" id="chips-reembolso"></div>
         <footer class="modal-footer">
-          <button type="submit" class="btn btn-primary" id="btn-add-reembolso">Adicionar pedido</button>
+          <button type="submit" class="btn btn-primary" id="btn-add-reembolso">Lançar pedido</button>
         </footer>
       </form>
+
+      <!-- Honorários do despachante: trilha à parte dos reembolsos -->
+      <div class="form-group" style="margin-top: 20px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+        <label for="reembolso-honorarios">Honorários Despachante (R$)</label>
+        <div style="display: flex; gap: 8px;">
+          <input type="number" step="0.01" id="reembolso-honorarios" class="form-control" placeholder="0.00" style="flex-grow: 1;">
+          <button type="button" class="btn btn-secondary" id="btn-salvar-honorarios">Salvar</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1089,6 +1112,38 @@
         case 'Pago':                     return '<span class="badge badge-fin-pago">✅ Pago</span>';
         default:                         return '';
       }
+    }
+
+    /**
+     * Com quem está a bola? (V3) Vem direto do campo `bola` da ata, que só o chat
+     * move (devolução). O único caso que não é bola de ninguém é a Junta concluída.
+     * O financeiro é separado — não entra aqui (vive no cifrão).
+     *
+     * Devolve: 'cobra' | 'despachante' | 'fim'.
+     */
+    function deQuemEhAVez(ata) {
+      if (ata.status === 'Concluído') return 'fim';
+      return (ata.bola === 'Cobra') ? 'cobra' : 'despachante';
+    }
+
+    /** Desenha o toggle "com a bola" (liga-desliga) para a coluna Status. */
+    function renderBola(ata) {
+      const lado = deQuemEhAVez(ata);
+
+      if (lado === 'fim') {
+        return `<span class="bola-fim" title="Junta concluída — bola com ninguém"><span class="material-icons-round">check</span> Finalizado</span>`;
+      }
+
+      const mapa = {
+        despachante: { nome: 'Despachante', dica: 'Bola com o despachante' },
+        cobra:       { nome: 'Cobra',       dica: 'Bola com a Cobra' }
+      };
+      const m = mapa[lado];
+
+      return `<span class="bola-wrap bola-${lado}" title="${m.dica}">
+        <span class="bola-switch"><span class="bola-knob"></span></span>
+        <span class="bola-nome">${m.nome}</span>
+      </span>`;
     }
 
     // V2: aplica a visibilidade por perfil trocando a classe no <body>.
@@ -1466,57 +1521,34 @@
           
           // Badge do status (Junta) + selo financeiro (V2)
           const statusBadge = `<span class="badge badge-${getStatusClass(ata.status)}">${ata.status}</span>`;
-          const finBadge = getFinanceiroBadge(ata.statusFinanceiro);
-          
-          // Calcular duração do processo societário
+          // Duração do processo
           const duration = calculateDuration(ata.dataEnvio, ata.status, ata.dataConclusao);
 
-          // Coluna Arquivos: só o ícone da pasta no Drive (os documentos ficam arquivados lá).
-          let filesHTML = ata.folderUrl
-            ? `<a class="folder-cell-link" href="${ata.folderUrl}" target="_blank" title="Abrir pasta da ata no Google Drive"><span class="material-icons-round">folder</span></a>`
-            : '<span class="folder-cell-empty" title="Pasta ainda não criada"><span class="material-icons-round">folder_off</span></span>';
-
-          // Ação da JUNTA (V2): Protocolar → Registrar → Concluir
-          let workflowActionHTML = "";
+          // Ação da JUNTA (V3): Protocolar → Registrar → Concluir. Sem "Pendência".
+          let juntaActionHTML = "";
           switch (ata.status) {
             case 'Enviado':
-              workflowActionHTML = `<button class="btn-workflow-action action-btn-enviado" onclick="openModal('${ata.id}', 'workflow_protocolo')"><span class="material-icons-round" style="font-size:11px;">pending_actions</span> Protocolar</button>`;
+              juntaActionHTML = `<button class="btn-workflow-action action-btn-enviado" onclick="openModal('${ata.id}', 'workflow_protocolo')"><span class="material-icons-round" style="font-size:11px;">pending_actions</span> Protocolar</button>`;
               break;
             case 'Em Protocolo':
-              workflowActionHTML = `<button class="btn-workflow-action action-btn-protocolo" onclick="openModal('${ata.id}', 'workflow_registro')"><span class="material-icons-round" style="font-size:11px;">verified</span> Registrar</button>`;
+              juntaActionHTML = `<button class="btn-workflow-action action-btn-protocolo" onclick="openModal('${ata.id}', 'workflow_registro')"><span class="material-icons-round" style="font-size:11px;">verified</span> Registrar</button>`;
               break;
             case 'Registrada':
-              workflowActionHTML = `<button class="btn-workflow-action action-btn-registrada" onclick="openModal('${ata.id}', 'workflow_concluir')"><span class="material-icons-round" style="font-size:11px;">task_alt</span> Concluir Junta</button>`;
-              break;
-            case 'Pendência':
-              workflowActionHTML = `<span style="font-size: 9px; font-weight: 700; color: var(--color-danger); text-transform: uppercase; display: inline-flex; align-items: center; gap: 4px; border: 1px solid rgba(239, 68, 68, 0.25); background-color: rgba(239, 68, 68, 0.08); padding: 4px 10px; border-radius: 20px;"><span class="material-icons-round" style="font-size: 11px;">hourglass_empty</span> Pendente</span>`;
+              juntaActionHTML = `<button class="btn-workflow-action action-btn-registrada" onclick="openModal('${ata.id}', 'workflow_concluir')"><span class="material-icons-round" style="font-size:11px;">task_alt</span> Concluir Junta</button>`;
               break;
           }
 
-          // Ação da trilha FINANCEIRA (V2): Lançar → Pedir pagamento → Confirmar pagamento
-          let financeiroActionHTML = "";
-          const finStatus = ata.statusFinanceiro || "";
-          if (finStatus === "") {
-            financeiroActionHTML = `<button class="btn-workflow-action action-btn-pagamento" onclick="openReembolsoModal('${ata.id}')"><span class="material-icons-round" style="font-size:11px;">request_quote</span> Lançar Reembolso</button>`;
-          } else if (finStatus === "Custos lançados") {
-            financeiroActionHTML = `<button class="btn-workflow-action action-btn-pagamento" onclick="openReembolsoModal('${ata.id}')"><span class="material-icons-round" style="font-size:11px;">add</span> Reembolsos</button>`
-              + `<button class="btn-workflow-action action-btn-registrada" onclick="marcarPendentePagamento('${ata.id}')"><span class="material-icons-round" style="font-size:11px;">schedule_send</span> Pedir pagamento</button>`;
-          } else if (finStatus === "Pendente pagamento Cobra") {
-            financeiroActionHTML = `<button class="btn-workflow-action action-btn-pagamento" onclick="openReembolsoModal('${ata.id}')"><span class="material-icons-round" style="font-size:11px;">visibility</span> Reembolsos</button>`
-              + `<button class="btn-workflow-action action-btn-protocolo btn-pay" onclick="openModal('${ata.id}', 'fin_pagar')"><span class="material-icons-round" style="font-size:11px;">check_circle</span> Confirmar pagamento</button>`;
-          } else if (finStatus === "Pago") {
-            financeiroActionHTML = `<button class="btn-workflow-action action-btn-protocolo" onclick="openReembolsoModal('${ata.id}')"><span class="material-icons-round" style="font-size:11px;">visibility</span> Reembolsos</button>`;
-          }
+          // Financeiro (V3): um cifrão que abre o painel. Vermelho = há pedido sem baixa.
+          const cifraoTitulo = ata.financeiroVermelho ? 'Financeiro — há pedido aguardando pagamento' : 'Financeiro — NF e reembolsos';
+          const cifraoBtn = `<button class="btn-icon fin ${ata.financeiroVermelho ? 'fin-vermelho' : ''}" onclick="openFinanceiroModal('${ata.id}')" title="${cifraoTitulo}"><span class="material-icons-round">payments</span></button>`;
 
-          let isPending = ata.status === 'Pendência';
-          let pendencyButton = "";
-          if (ata.status !== 'Concluído') {
-            pendencyButton = `
-              <button class="btn-icon ${isPending ? 'pending-active' : ''}" onclick="openPendenciaModal('${ata.id}')" title="${isPending ? 'Pendência (abrir conversa)' : 'Abrir Pendência'}">
-                <span class="material-icons-round" style="${isPending ? 'color: var(--color-danger); font-weight: bold;' : 'color: var(--text-muted);'}">warning</span>
-              </button>
-            `;
-          }
+          // Pasta no Drive (era coluna própria; virou botão).
+          const pastaBtn = ata.folderUrl
+            ? `<a class="btn-icon" href="${ata.folderUrl}" target="_blank" title="Abrir pasta da ata no Drive"><span class="material-icons-round">folder</span></a>`
+            : `<span class="btn-icon" style="opacity:.4;" title="Pasta ainda não criada"><span class="material-icons-round">folder_off</span></span>`;
+
+          // Chat/devolução: abre a conversa. É por aqui que a bola passa.
+          const chatBtn = `<button class="btn-icon" onclick="openPendenciaModal('${ata.id}')" title="Chat / devolução"><span class="material-icons-round" style="color: var(--text-muted);">forum</span></button>`;
 
           tr.innerHTML = `
             <td class="company-cell">${ata.empresa}</td>
@@ -1532,13 +1564,13 @@
               ${ata.dataProtocolo ? `<span style="font-size: 9px; color: var(--text-muted);">Inserido: ${formatDateString(ata.dataProtocolo)}</span>` : ''}
             </td>
             <td><span style="font-weight: 600;">${duration}</span></td>
-            <td><div class="status-cell-stack">${statusBadge}${finBadge}</div></td>
-            <td>${filesHTML}</td>
+            <td><div class="status-cell-stack">${renderBola(ata)}${statusBadge}</div></td>
             <td>
               <div class="action-group">
-                ${workflowActionHTML}
-                ${financeiroActionHTML}
-                ${pendencyButton}
+                ${juntaActionHTML}
+                ${cifraoBtn}
+                ${pastaBtn}
+                ${chatBtn}
 
                 <!-- Correção Manual + Excluir: só admin (classe btn-admin-only) -->
                 <button class="btn-icon edit btn-admin-only" onclick="openModal('${ata.id}', 'edit_admin')" title="Correção Manual (Administrador)" style="margin-left: 8px;">
@@ -1557,7 +1589,7 @@
       // KPIs
       kpiTotal.innerText = state.atas.length;
       kpiProtocolo.innerText = state.atas.filter(a => a.status === 'Em Protocolo').length;
-      kpiPagamento.innerText = state.atas.filter(a => a.statusFinanceiro === 'Pendente pagamento Cobra').length;
+      kpiPagamento.innerText = state.atas.filter(a => a.financeiroVermelho).length;
       kpiConcluido.innerText = state.atas.filter(a => a.status === 'Concluído').length;
     }
 
@@ -2391,47 +2423,8 @@
       }
     }
 
-    window.togglePendency = async function(id) {
-      const ata = state.atas.find(a => a.id === id);
-      if (!ata) return;
-
-      const isPending = ata.status === 'Pendência';
-      const confirmMsg = isPending
-        ? `Você deseja resolver a pendência da ata ${id} e retorná-la ao status anterior?`
-        : `Deseja marcar a ata ${id} como "Pendência"? O status atual será salvo para restauração posterior.`;
-
-      const ok = await confirmar(confirmMsg, {
-        titulo: isPending ? 'Resolver pendência' : 'Marcar pendência',
-        rotuloSim: isPending ? 'Resolver' : 'Marcar'
-      });
-      if (!ok) return;
-
-      showLoading(isPending ? "Resolvendo pendência..." : "Marcando pendência...");
-      
-      if (state.isGoogleAppsScript) {
-        google.script.run
-          .withSuccessHandler(function(res) {
-            loadData();
-          })
-          .withFailureHandler(function(err) {
-            avisar("Erro ao alterar pendência: " + ((err && err.message) || err));
-            hideLoading();
-          })
-          .toggleAtaPendency(id);
-      } else {
-        // Simulação Local
-        if (isPending) {
-          ata.status = ata.statusAnterior || 'Enviado';
-          ata.statusAnterior = "";
-        } else {
-          ata.statusAnterior = ata.status;
-          ata.status = 'Pendência';
-        }
-        saveLocalStorage();
-        renderAll();
-        hideLoading();
-      }
-    };
+    // (V3) togglePendency removido: a "Pendência" que congelava a ata deixou de
+    // existir. A bola passa entre as partes pelo chat (openPendenciaModal).
 
     function loadSpreadsheetLink() {
       if (state.isGoogleAppsScript) {
@@ -2679,86 +2672,71 @@
       }
     }
 
-    // ===== V2: Financeiro — pedir pagamento (ação rápida do despachante) =====
-    window.marcarPendentePagamento = async function(id) {
-      const ok = await confirmar(`Marcar a ata ${id} como "Pendente de pagamento pela Cobra"?`, {
-        titulo: 'Pedir pagamento', rotuloSim: 'Marcar'
+    // (V3) marcarPendentePagamento removido: não há mais "Pedir pagamento" como
+    // passo. Lançar o pedido no painel financeiro já acende o cifrão vermelho.
+
+    // ===== Anexos múltiplos (chat e financeiro compartilham) =====
+    // Guarda os File escolhidos por painel (pela id do container de chips).
+    const anexosPorPainel = {};
+
+    function ligarDropzoneMulti(dzId, inputId, chipsId) {
+      anexosPorPainel[chipsId] = [];
+      const dz = document.getElementById(dzId);
+      const inp = document.getElementById(inputId);
+      dz.addEventListener('click', () => inp.click());
+      inp.addEventListener('click', (e) => e.stopPropagation());
+      inp.addEventListener('change', (e) => {
+        for (let i = 0; i < e.target.files.length; i++) anexosPorPainel[chipsId].push(e.target.files[i]);
+        inp.value = '';
+        renderChips(chipsId);
       });
-      if (!ok) return;
-      showLoading("Atualizando financeiro...");
-      if (state.isGoogleAppsScript) {
-        google.script.run
-          .withSuccessHandler(function() { loadData(); })
-          .withFailureHandler(function(err) { avisar("Erro ao pedir o pagamento: " + ((err && err.message) || err)); hideLoading(); })
-          .setStatusFinanceiro(id, "Pendente pagamento Cobra");
-      } else {
-        const ata = state.atas.find(a => a.id === id);
-        if (ata) ata.statusFinanceiro = "Pendente pagamento Cobra";
-        saveLocalStorage(); renderAll(); hideLoading();
-      }
+    }
+
+    function renderChips(chipsId) {
+      const chips = document.getElementById(chipsId);
+      const lista = anexosPorPainel[chipsId] || [];
+      chips.innerHTML = lista.map((f, i) =>
+        `<span class="anexo-chip"><span class="material-icons-round" style="font-size:13px;">description</span> ${f.name}<button type="button" onclick="removerAnexo('${chipsId}', ${i})" aria-label="Remover"><span class="material-icons-round" style="font-size:13px;">close</span></button></span>`
+      ).join('');
+    }
+
+    window.removerAnexo = function(chipsId, i) {
+      (anexosPorPainel[chipsId] || []).splice(i, 1);
+      renderChips(chipsId);
     };
 
-    // ===== V2: Conversa de Pendência =====
-    let pendenciaFile = { value: "", file: null };
+    function limparAnexos(chipsId) { anexosPorPainel[chipsId] = []; renderChips(chipsId); }
+
+    /** Sobe todos os anexos de um painel direto pro Drive e devolve [{nome,url}]. */
+    async function subirAnexos(chipsId, ata) {
+      const lista = anexosPorPainel[chipsId] || [];
+      const out = [];
+      for (let i = 0; i < lista.length; i++) {
+        const f = lista[i];
+        showLoading(`Enviando anexo ${i + 1} de ${lista.length}…`);
+        const res = await uploadFilePromise(f, f.name, ata.id, ata.empresa || '', ata.descricao || '');
+        out.push({ nome: f.name, url: res.url });
+      }
+      return out;
+    }
+
+    // ===== V3: Chat / Devolução (cada envio passa a bola pro outro lado) =====
     let pendenciaAtaAtual = null;
 
     function setupPendencia() {
       const modal = document.getElementById('pendencia-modal');
       document.getElementById('btn-close-pendencia').addEventListener('click', () => modal.classList.remove('active'));
-
-      document.getElementById('pendencia-form').addEventListener('submit', (e) => {
-        e.preventDefault();
-        const ata = state.atas.find(a => a.id === pendenciaAtaAtual);
-        // Se ainda não está pendente, a 1ª mensagem ABRE a pendência; senão, é resposta.
-        enviarPendencia(ata && ata.status === 'Pendência' ? 'responder' : 'abrir');
-      });
-
-      document.getElementById('btn-resolver-pendencia').addEventListener('click', () => enviarPendencia('resolver'));
-
-      const inp = document.getElementById('file-pendencia');
-      const dz = document.getElementById('dropzone-pendencia');
-      dz.addEventListener('click', (e) => { if (!e.target.closest('.file-preview')) inp.click(); });
-      inp.addEventListener('click', (e) => e.stopPropagation());
-      inp.addEventListener('change', (e) => {
-        if (e.target.files.length > 0) {
-          const f = e.target.files[0];
-          pendenciaFile.value = f.name;
-          document.getElementById('name-pendencia').innerText = f.name;
-          document.getElementById('preview-pendencia').classList.remove('hidden');
-          dz.querySelector('.file-icon').classList.add('hidden');
-          dz.querySelector('.dropzone-text').classList.add('hidden');
-          pendenciaFile.file = f;
-        }
-      });
-      document.getElementById('remove-pendencia').addEventListener('click', (e) => {
-        e.stopPropagation();
-        pendenciaFile = { value: "", file: null };
-        inp.value = "";
-        document.getElementById('preview-pendencia').classList.add('hidden');
-        dz.querySelector('.file-icon').classList.remove('hidden');
-        dz.querySelector('.dropzone-text').classList.remove('hidden');
-      });
+      document.getElementById('pendencia-form').addEventListener('submit', (e) => { e.preventDefault(); enviarDevolucao(); });
+      ligarDropzoneMulti('dropzone-pendencia', 'file-pendencia', 'chips-pendencia');
     }
 
     window.openPendenciaModal = function(id) {
       pendenciaAtaAtual = id;
-      pendenciaFile = { value: "", file: null };
-      const ata = state.atas.find(a => a.id === id);
+      limparAnexos('chips-pendencia');
       const modal = document.getElementById('pendencia-modal');
-
       document.getElementById('pendencia-ata-id').value = id;
       document.getElementById('pendencia-msg').value = "";
-      document.getElementById('preview-pendencia').classList.add('hidden');
-      const dz = document.getElementById('dropzone-pendencia');
-      dz.querySelector('.file-icon').classList.remove('hidden');
-      dz.querySelector('.dropzone-text').classList.remove('hidden');
-
-      const isPending = ata && ata.status === 'Pendência';
-      document.getElementById('pendencia-title').innerText = `Pendência — Ata ${id}`;
-      document.getElementById('pendencia-msg-label').innerText = isPending ? 'Escreva uma resposta' : 'Descreva a pendência';
-      document.getElementById('btn-enviar-pendencia').innerText = isPending ? 'Responder' : 'Abrir pendência';
-      document.getElementById('btn-resolver-pendencia').style.display = isPending ? 'inline-flex' : 'none';
-
+      document.getElementById('pendencia-title').innerText = `Chat — Ata ${id}`;
       modal.classList.add('active');
       carregarConversa(id);
     };
@@ -2779,28 +2757,29 @@
     function renderConversa(msgs) {
       const box = document.getElementById('pendencia-conversa');
       if (!msgs || msgs.length === 0) {
-        box.innerHTML = '<div class="conversa-vazia">Nenhuma mensagem ainda. Descreva a pendência abaixo.</div>';
+        box.innerHTML = '<div class="conversa-vazia">Nenhuma mensagem ainda. Escreva abaixo para devolver a bola.</div>';
         return;
       }
       box.innerHTML = msgs.map(m => {
         const ehCobra = (m.papel || '').toLowerCase() === 'cobra';
-        const anexo = m.arquivo
-          ? `<div class="msg-anexo"><a class="file-link-btn" href="${m.urlArquivo || '#'}" target="_blank"><span class="material-icons-round" style="font-size:11px;">attach_file</span> ${m.arquivo}</a></div>`
-          : '';
+        const anexos = (m.arquivos || []).map(a =>
+          `<a class="file-link-btn" href="${a.url || '#'}" target="_blank"><span class="material-icons-round" style="font-size:11px;">attach_file</span> ${a.nome}</a>`
+        ).join(' ');
         return `
           <div class="msg-bolha ${ehCobra ? 'msg-cobra' : 'msg-despachante'}">
             <div class="msg-topo"><strong>${m.papel || 'Mensagem'}${m.autor ? ' · ' + m.autor : ''}</strong><span>${m.dataHora}</span></div>
             ${m.mensagem ? `<div class="msg-texto">${m.mensagem}</div>` : ''}
-            ${anexo}
+            ${anexos ? `<div class="msg-anexo">${anexos}</div>` : ''}
           </div>`;
       }).join('');
       box.scrollTop = box.scrollHeight;
     }
 
-    async function enviarPendencia(acao) {
+    async function enviarDevolucao() {
       const id = pendenciaAtaAtual;
       const mensagem = document.getElementById('pendencia-msg').value.trim();
-      if (acao !== 'resolver' && !mensagem && !pendenciaFile.value) {
+      const temAnexo = (anexosPorPainel['chips-pendencia'] || []).length > 0;
+      if (!mensagem && !temAnexo) {
         avisar('Escreva uma mensagem ou anexe um documento.');
         return;
       }
@@ -2814,82 +2793,40 @@
       }
 
       try {
-        // O anexo sobe ANTES, sozinho (em pedaços, se for grande), e ao servidor
-        // vai só o link — o base64 inteiro dentro do pedido não aguenta o tranco.
-        let arquivoUrl = '';
-        if (pendenciaFile.file && pendenciaFile.value) {
-          const ata = state.atas.find(a => a.id === id) || {};
-          const res = await uploadFilePromise(pendenciaFile.file, pendenciaFile.value, id, ata.empresa || '', ata.descricao || '');
-          arquivoUrl = res.url;
-        }
+        const ata = state.atas.find(a => a.id === id) || { id: id };
+        const arquivos = await subirAnexos('chips-pendencia', ata);
 
-        showLoading('Gravando a mensagem...');
-        await chamarServidor('postPendencia', [{
-          ataId: id, autor: state.email || '', papel: papel, mensagem: mensagem,
-          arquivoNome: pendenciaFile.value, arquivoUrl: arquivoUrl, acao: acao
+        showLoading('Gravando e devolvendo a bola...');
+        await chamarServidor('postDevolucao', [{
+          ataId: id, autor: state.email || '', papel: papel, mensagem: mensagem, arquivos: arquivos
         }]);
 
         document.getElementById('pendencia-modal').classList.remove('active');
         loadData();
       } catch (err) {
-        avisar('Erro ao enviar a pendência: ' + ((err && err.message) || err));
+        avisar('Erro ao enviar a devolução: ' + ((err && err.message) || err));
         hideLoading();
       }
     }
 
-    // ===== V2.1: Reembolsos (vários pedidos por ata) =====
-    let reembolsoFile = { value: "", file: null };
+    // ===== V3: Painel Financeiro (NF/reembolsos com baixa por pedido) =====
     let reembolsoAtaAtual = null;
 
     function setupReembolso() {
       const modal = document.getElementById('reembolso-modal');
       document.getElementById('btn-close-reembolso').addEventListener('click', () => modal.classList.remove('active'));
-
-      document.getElementById('reembolso-form').addEventListener('submit', (e) => {
-        e.preventDefault();
-        enviarReembolso();
-      });
-
+      document.getElementById('reembolso-form').addEventListener('submit', (e) => { e.preventDefault(); enviarReembolso(); });
       document.getElementById('btn-salvar-honorarios').addEventListener('click', salvarHonorarios);
-
-      const inp = document.getElementById('file-reembolso');
-      const dz = document.getElementById('dropzone-reembolso');
-      dz.addEventListener('click', (e) => { if (!e.target.closest('.file-preview')) inp.click(); });
-      inp.addEventListener('click', (e) => e.stopPropagation());
-      inp.addEventListener('change', (e) => {
-        if (e.target.files.length > 0) {
-          const f = e.target.files[0];
-          reembolsoFile.value = f.name;
-          document.getElementById('name-reembolso').innerText = f.name;
-          document.getElementById('preview-reembolso').classList.remove('hidden');
-          dz.querySelector('.file-icon').classList.add('hidden');
-          dz.querySelector('.dropzone-text').classList.add('hidden');
-          reembolsoFile.file = f;
-        }
-      });
-      document.getElementById('remove-reembolso').addEventListener('click', (e) => {
-        e.stopPropagation();
-        limparAnexoReembolso();
-      });
+      ligarDropzoneMulti('dropzone-reembolso', 'file-reembolso', 'chips-reembolso');
     }
 
-    function limparAnexoReembolso() {
-      reembolsoFile = { value: "", file: null };
-      const inp = document.getElementById('file-reembolso');
-      const dz = document.getElementById('dropzone-reembolso');
-      inp.value = "";
-      document.getElementById('preview-reembolso').classList.add('hidden');
-      dz.querySelector('.file-icon').classList.remove('hidden');
-      dz.querySelector('.dropzone-text').classList.remove('hidden');
-    }
-
-    window.openReembolsoModal = function(id) {
+    window.openFinanceiroModal = function(id) {
       reembolsoAtaAtual = id;
-      limparAnexoReembolso();
+      limparAnexos('chips-reembolso');
       const ata = state.atas.find(a => a.id === id);
       const modal = document.getElementById('reembolso-modal');
 
-      document.getElementById('reembolso-title').innerText = `Reembolsos — Ata ${id}`;
+      document.getElementById('reembolso-title').innerText = `Financeiro — Ata ${id}`;
       document.getElementById('reembolso-valor').value = "";
       document.getElementById('reembolso-justificativa').value = "";
       document.getElementById('reembolso-honorarios').value = (ata && ata.honorarios) ? ata.honorarios : "";
@@ -2897,6 +2834,7 @@
       modal.classList.add('active');
       carregarReembolsos(id);
     };
+    window.openReembolsoModal = window.openFinanceiroModal; // compat
 
     function carregarReembolsos(id) {
       const box = document.getElementById('reembolso-lista');
@@ -2919,27 +2857,57 @@
     function renderReembolsos(itens) {
       const box = document.getElementById('reembolso-lista');
       const totalBox = document.getElementById('reembolso-total');
-      if (!itens || itens.length === 0) {
-        box.innerHTML = '<div class="reembolso-vazia">Nenhum pedido ainda. Adicione o primeiro abaixo.</div>';
+      const alerta = document.getElementById('reembolso-alerta');
+      itens = itens || [];
+
+      const pendentes = itens.filter(it => !it.baixado).length;
+      if (pendentes > 0) {
+        document.getElementById('reembolso-alerta-txt').innerText = `${pendentes} pedido${pendentes > 1 ? 's' : ''} aguardando pagamento`;
+        alerta.classList.remove('hidden');
+      } else {
+        alerta.classList.add('hidden');
+      }
+
+      if (itens.length === 0) {
+        box.innerHTML = '<div class="reembolso-vazia">Nenhum pedido ainda. Lance o primeiro abaixo.</div>';
         totalBox.innerText = "";
         return;
       }
+
+      // Só Cobra/admin dá baixa; o despachante vê o estado, mas não baixa.
+      const podeBaixar = (state.role !== 'despachante');
       let total = 0;
       box.innerHTML = itens.map(it => {
         total += Number(it.valor) || 0;
-        const anexo = it.arquivo
-          ? `<a class="file-link-btn" href="${it.urlArquivo || '#'}" target="_blank"><span class="material-icons-round" style="font-size:11px;">attach_file</span> ${it.arquivo}</a>`
-          : '<span style="font-size:10px; color: var(--text-muted);">sem anexo</span>';
+        const anexos = (it.arquivos || []).map(a =>
+          `<a class="file-link-btn" href="${a.url || '#'}" target="_blank"><span class="material-icons-round" style="font-size:11px;">attach_file</span> ${a.nome}</a>`
+        ).join(' ') || '<span style="font-size:10px; color: var(--text-muted);">sem anexo</span>';
+
+        const selo = it.baixado
+          ? `<span class="fin-selo fin-selo-pago"><span class="material-icons-round" style="font-size:11px;">check</span> Baixado ${it.baixadoEm || ''}</span>`
+          : `<span class="fin-selo fin-selo-aguardando">Aguardando</span>`;
+
+        let acaoBaixa = '';
+        if (podeBaixar) {
+          acaoBaixa = it.baixado
+            ? `<button class="btn btn-secondary" style="font-size:10px; padding:5px 10px;" onclick="reabrirBaixa('${it.linha}')">Reabrir</button>`
+            : `<button class="btn btn-success" style="font-size:10px; padding:5px 10px;" onclick="darBaixa('${it.linha}')"><span class="material-icons-round" style="font-size:13px;">check</span> Dar baixa (paguei)</button>`;
+        }
+
         return `
-          <div class="reembolso-item">
+          <div class="reembolso-item ${it.baixado ? 'reembolso-baixado' : 'reembolso-pendente'}">
             <div class="reembolso-item-topo">
               <span class="reembolso-valor">${formatMoney(it.valor)}</span>
-              <span class="reembolso-item-meta">${it.dataHora}${it.autor ? ' · ' + it.autor : ''}</span>
+              ${selo}
             </div>
+            <span class="reembolso-item-meta">${it.dataHora}${it.autor ? ' · ' + it.autor : ''}</span>
             ${it.justificativa ? `<div class="reembolso-just">${it.justificativa}</div>` : ''}
             <div class="reembolso-item-rodape">
-              ${anexo}
-              <button class="btn-del-reembolso" title="Excluir pedido" onclick="removerReembolso('${it.linha}')"><span class="material-icons-round" style="font-size:16px;">delete</span></button>
+              <span>${anexos}</span>
+              <span style="display:flex; gap:6px; align-items:center;">
+                ${acaoBaixa}
+                <button class="btn-del-reembolso btn-admin-only" title="Excluir pedido" onclick="removerReembolso('${it.linha}')"><span class="material-icons-round" style="font-size:16px;">delete</span></button>
+              </span>
             </div>
           </div>`;
       }).join('');
@@ -2950,14 +2918,13 @@
       const id = reembolsoAtaAtual;
       const valor = Number(document.getElementById('reembolso-valor').value);
       const justificativa = document.getElementById('reembolso-justificativa').value.trim();
+      const temAnexo = (anexosPorPainel['chips-reembolso'] || []).length > 0;
 
       if (!valor || valor <= 0) { avisar('Informe um valor válido para o reembolso.'); return; }
       if (!justificativa) { avisar('Escreva a justificativa do pedido.'); return; }
-      if (!reembolsoFile.value) { avisar('Anexe a NF ou o comprovante deste pedido.'); return; }
+      if (!temAnexo) { avisar('Anexe a NF ou o comprovante deste pedido.'); return; }
 
-      const autor = state.email || '';
       showLoading('Registrando reembolso...');
-
       if (!state.isGoogleAppsScript) {
         document.getElementById('reembolso-modal').classList.remove('active');
         hideLoading();
@@ -2965,18 +2932,12 @@
       }
 
       try {
-        // Mesma ideia da pendência: o anexo sobe primeiro, o pedido leva só o link.
-        let arquivoUrl = '';
-        if (reembolsoFile.file) {
-          const ata = state.atas.find(a => a.id === id) || {};
-          const res = await uploadFilePromise(reembolsoFile.file, reembolsoFile.value, id, ata.empresa || '', ata.descricao || '');
-          arquivoUrl = res.url;
-        }
+        const ata = state.atas.find(a => a.id === id) || { id: id };
+        const arquivos = await subirAnexos('chips-reembolso', ata);
 
         showLoading('Gravando o pedido...');
         await chamarServidor('postReembolso', [{
-          ataId: id, autor: autor, valor: valor, justificativa: justificativa,
-          arquivoNome: reembolsoFile.value, arquivoUrl: arquivoUrl
+          ataId: id, autor: state.email || '', valor: valor, justificativa: justificativa, arquivos: arquivos
         }]);
 
         document.getElementById('reembolso-modal').classList.remove('active');
@@ -2987,6 +2948,28 @@
       }
     }
 
+    /** Recarrega o painel + as atas (pro cifrão da tabela atualizar). */
+    function recarregarFinanceiro() {
+      carregarReembolsos(reembolsoAtaAtual);
+      google.script.run.withSuccessHandler(function(data) { state.atas = data || []; renderDashboard(); }).getAtas();
+    }
+
+    window.darBaixa = function(linha) {
+      showLoading('Dando baixa...');
+      google.script.run
+        .withSuccessHandler(function() { recarregarFinanceiro(); hideLoading(); })
+        .withFailureHandler(function(err) { avisar('Erro ao dar baixa: ' + ((err && err.message) || err)); hideLoading(); })
+        .darBaixaReembolso(reembolsoAtaAtual, linha);
+    };
+
+    window.reabrirBaixa = function(linha) {
+      showLoading('Reabrindo...');
+      google.script.run
+        .withSuccessHandler(function() { recarregarFinanceiro(); hideLoading(); })
+        .withFailureHandler(function(err) { avisar('Erro ao reabrir: ' + ((err && err.message) || err)); hideLoading(); })
+        .reabrirReembolso(reembolsoAtaAtual, linha);
+    };
+
     window.removerReembolso = async function(linha) {
       const ok = await confirmar('Excluir este pedido de reembolso?', {
         titulo: 'Excluir reembolso', rotuloSim: 'Excluir', perigo: true
@@ -2995,12 +2978,7 @@
       showLoading('Excluindo pedido...');
       if (state.isGoogleAppsScript) {
         google.script.run
-          .withSuccessHandler(function() {
-            carregarReembolsos(reembolsoAtaAtual);
-            // Recarrega as atas em segundo plano para atualizar o total na tabela.
-            google.script.run.withSuccessHandler(function(data) { state.atas = data || []; renderDashboard(); }).getAtas();
-            hideLoading();
-          })
+          .withSuccessHandler(function() { recarregarFinanceiro(); hideLoading(); })
           .withFailureHandler(function(err) { avisar('Erro ao excluir o pedido de reembolso: ' + ((err && err.message) || err)); hideLoading(); })
           .deleteReembolso(reembolsoAtaAtual, linha);
       } else {

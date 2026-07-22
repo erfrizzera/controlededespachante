@@ -1,5 +1,5 @@
 {
-  "version": "2.2.0",
+  "version": "3.0.0",
   "atualizadoEm": "2026-07-17",
-  "nota": "O Registrar agora aguenta a ata chancelada de verdade (dezenas de MB). O arquivo vai do navegador DIRETO pro Drive, em pedaços, com porcentagem na tela — antes ele passava pelo Apps Script, que não tem memória para isso e travava sem avisar."
+  "nota": "Reforma grande: acabou a 'Pendência' que congelava a ata. Agora um botão 'Com a bola' na coluna Status mostra de quem é a vez (Cobra azul / despachante cinza), e a bola passa quando alguém escreve no chat e devolve. O financeiro saiu do status: virou um cifrão nas Ações que abre um painel com NF/reembolsos e baixa por pedido — fica vermelho enquanto houver pedido sem pagar. A coluna Arquivos virou um botão de pasta."
 }

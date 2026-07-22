@@ -27,31 +27,44 @@ devolve a "tela" para o Pages e mantém o motor como **peça única**. Decisão 
 
 ## Domínio (V2): duas trilhas + perfis
 
-- **Processo na Junta:** `Enviado → Em Protocolo → Registrada → Concluído`
-  (+ o toggle **"Pendência"**, que congela e depois volta ao status anterior — agora
-  com conversa e anexos numa aba `Pendencias`). *(Era "Pendência Cobra" até a V2.1.)*
-- **Financeiro (trilha separada, independente da Junta):** `— → Custos lançados →
-  Pendente pagamento Cobra → Pago`. Permite cobrar NF/reembolso antes do fim na Junta.
-  A partir da V2.1, **cada ata pode ter vários pedidos de reembolso** (aba `Reembolsos`),
-  cada um com valor + justificativa + anexo próprio; a coluna `Reembolso Taxas` da aba
-  `Atas` guarda a **soma** deles. Honorários seguem como campo único à parte.
+- **Processo na Junta (coluna Status):** `Enviado → Em Protocolo → Registrada → Concluído`.
+  Só isso — o status é **só sobre a Junta**. A "Pendência" que congelava a ata **acabou na V3**.
+- **A bola (V3):** com quem está a vez de agir. Fica na coluna Status, um toggle **liga-desliga**
+  em cima do status (**Cobra azul à esquerda, despachante cinza à direita**). Guardada na coluna
+  `Bola` da aba `Atas`. **Só o chat a move:** quem escreve e envia está *devolvendo* — a bola vai
+  pro outro lado (`postDevolucao` grava a mensagem e vira a `Bola`; nada congela). Ata nova nasce
+  com o **despachante**. Junta concluída → "Finalizado" (bola de ninguém). O financeiro **não**
+  entra na bola.
+- **Financeiro (V3) — fora do Status, num cifrão nas Ações.** O cifrão abre um painel lateral com
+  NF/reembolsos: cada pedido tem valor + justificativa + **vários anexos** e uma **baixa própria**
+  (coluna `Baixado Em` na aba `Reembolsos`). O cifrão fica **vermelho** enquanto houver **qualquer**
+  pedido sem baixa (`financeiroVermelho`, calculado no `getAtas`). A baixa é da **Cobra/admin**;
+  lançar o pedido já é o "pedido de pagamento" (não existe mais "Pedir/Confirmar pagamento" como
+  passo). Honorários seguem como campo único no mesmo painel. *(O `Status Financeiro` da V2 virou
+  legado — a fonte da verdade agora é a baixa por pedido.)*
 - **Perfis (coluna Permissão da aba `Usuarios`):** `admin` (tudo), `cobra` (sem E-mails,
   Sheets, Correção Manual, Excluir) e `despachante` (também sem Cadastrar e Drive Geral).
 
-## Modelo de dados (aba `Atas`, 17 colunas)
+## Modelo de dados (aba `Atas`, 18 colunas)
 
 Identificação: `ID` (sequencial 0001…), `Empresa` (lista fixa de empresas do grupo),
-`Descrição`, `Data de Envio`, `Status`, `Status Anterior`, `Status Financeiro`.
+`Descrição`, `Data de Envio`, `Status`, `Status Anterior` (legado V2, não usado na V3),
+`Status Financeiro` (legado V2), `Bola` (V3: `Cobra` | `Despachante`).
 Documentos (PDF no Drive; a célula guarda o link): `Ata Assinada`, `Ata Registrada`,
 `Nota Fiscal`, `Comprovante de Despesa`, `Pasta no Drive`.
 Protocolo: `Número do Protocolo`, `Data do Protocolo` (automática).
 Financeiro: `Reembolso Taxas` (soma dos pedidos da aba `Reembolsos`), `Honorários Despachante`.
 Conclusão: `Data de Conclusão` (automática).
 
-Abas auxiliares: `Usuarios` (whitelist + perfil), `Pendencias` (conversa de pendência),
-`Reembolsos` (um pedido por linha: `ID da Ata`, `Data/Hora`, `Autor`, `Valor`,
-`Justificativa`, `Arquivo`). Na coluna **Arquivos** da tela mostra-se só o **ícone da
-pasta** da ata no Drive — os documentos ficam arquivados lá dentro.
+Abas auxiliares: `Usuarios` (whitelist + perfil); `Pendencias` (o **chat/devolução** — mesmo
+nome de antes pra não perder histórico; anexos como JSON `[{nome,url}]` na coluna `Arquivo`);
+`Reembolsos` (um pedido por linha: `ID da Ata`, `Data/Hora`, `Autor`, `Valor`, `Justificativa`,
+`Arquivo` (JSON de vários anexos), `Baixado Em` (V3: quando foi pago)). Não há mais coluna
+**Arquivos** na tela — a pasta do Drive virou um botão nas Ações.
+
+**Migração V3 (`ensureMigracaoV3_`):** roda uma vez (guardada por Script Property `MIGRADO_V3`)
+no primeiro `getAtas` após o deploy — destrava atas em "Pendência" (volta ao status anterior) e
+semeia `Bola='Despachante'`. Idempotente.
 
 ## Regras da Flufa aplicadas
 
