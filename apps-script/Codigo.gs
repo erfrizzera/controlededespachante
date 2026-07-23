@@ -570,6 +570,22 @@ function ensureTriggersEmail_() {
   } catch (e) { Logger.log('ensureTriggersEmail_ falhou (tenta no próximo load): ' + e); }
 }
 
+/**
+ * Instalação MANUAL dos gatilhos (pública, dá pra rodar pelo editor ou clasp run).
+ * Limpa a trava e força a criação. Devolve quantos gatilhos de enviarFilaEmails
+ * existem no fim — pra confirmar que ficaram os dois.
+ */
+function instalarGatilhosEmail() {
+  PropertiesService.getScriptProperties().deleteProperty('TRIGGERS_EMAIL_V3');
+  ensureTriggersEmail_();
+  var qtd = 0;
+  var gatilhos = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < gatilhos.length; i++) {
+    if (gatilhos[i].getHandlerFunction() === 'enviarFilaEmails') qtd++;
+  }
+  return 'Gatilhos de enviarFilaEmails ativos: ' + qtd;
+}
+
 /** Monta e envia o e-mail bonito de mudança de status. */
 function sendEmailsOnStatusChange_(ata, statusAntigo, statusNovo) {
   var emails = getNotificationEmails();
