@@ -28,7 +28,10 @@
     var APP_URL = "https://script.google.com/macros/s/AKfycbz8FqcbL2DqwkqUH0vmoJ503Vui7G7wwD718-QZrGpVeSUXzNgSPN2g5JG9FrgWeMnF/exec";
 
     if (APP_URL) {
-      document.getElementById('app-frame').src = APP_URL;
+      // Quebra-cache: cada abertura força o app a vir fresco do Apps Script, em
+      // vez de o navegador servir uma versão velha guardada (foi o que travou a
+      // tela na V3.1). O app é dinâmico (login, dados) — não deve ser cacheado.
+      document.getElementById('app-frame').src = APP_URL + '?cb=' + Date.now();
     } else {
       document.getElementById('carregando').textContent =
         "Falta configurar a URL do app em index.html (variável APP_URL).";
