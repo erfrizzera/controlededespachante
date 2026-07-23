@@ -124,7 +124,6 @@ function getAbaUsuarios_(planilha) {
 
 function getAtas() {
   ensureMigracaoV3_();   // uma vez só: destrava "Pendência" e semeia a Bola
-  ensureTriggersEmail_(); // uma vez só: instala os gatilhos de e-mail (10h/15h)
 
   var aba = getAbaAtas_();
   var intervalo = aba.getDataRange();
@@ -549,42 +548,14 @@ function enviarFilaEmails() {
 }
 
 /**
- * Garante os gatilhos de horário (10h e 15h). Roda uma vez, guardado por Script
- * Property; confere os gatilhos que já existem pra não duplicar.
+ * ATENÇÃO (V3.1.1): o código que CRIAVA os gatilhos (ScriptApp.newTrigger) foi
+ * removido de propósito. Ele exige o escopo `script.scriptapp`, e num web app
+ * dentro de iframe isso dispara uma tela de autorização que o iframe bloqueia —
+ * deixando o app EM BRANCO. Os gatilhos de 10h/15h já foram criados à mão e
+ * continuam valendo (moram na config do projeto, não no código). Se um dia
+ * precisar recriá-los, faça pelo painel Acionadores, NUNCA por código chamado
+ * pelo web app.
  */
-function ensureTriggersEmail_() {
-  var props = PropertiesService.getScriptProperties();
-  if (props.getProperty('TRIGGERS_EMAIL_V3') === 'ok') return;
-  try {
-    var jaTem = {};
-    var gatilhos = ScriptApp.getProjectTriggers();
-    for (var i = 0; i < gatilhos.length; i++) {
-      if (gatilhos[i].getHandlerFunction() === 'enviarFilaEmails') jaTem[gatilhos[i].getUniqueId()] = true;
-    }
-    // Se não houver NENHUM gatilho de enviarFilaEmails, cria os dois.
-    if (!gatilhos.some(function (g) { return g.getHandlerFunction() === 'enviarFilaEmails'; })) {
-      ScriptApp.newTrigger('enviarFilaEmails').timeBased().atHour(10).everyDays(1).create();
-      ScriptApp.newTrigger('enviarFilaEmails').timeBased().atHour(15).everyDays(1).create();
-    }
-    props.setProperty('TRIGGERS_EMAIL_V3', 'ok');
-  } catch (e) { Logger.log('ensureTriggersEmail_ falhou (tenta no próximo load): ' + e); }
-}
-
-/**
- * Instalação MANUAL dos gatilhos (pública, dá pra rodar pelo editor ou clasp run).
- * Limpa a trava e força a criação. Devolve quantos gatilhos de enviarFilaEmails
- * existem no fim — pra confirmar que ficaram os dois.
- */
-function instalarGatilhosEmail() {
-  PropertiesService.getScriptProperties().deleteProperty('TRIGGERS_EMAIL_V3');
-  ensureTriggersEmail_();
-  var qtd = 0;
-  var gatilhos = ScriptApp.getProjectTriggers();
-  for (var i = 0; i < gatilhos.length; i++) {
-    if (gatilhos[i].getHandlerFunction() === 'enviarFilaEmails') qtd++;
-  }
-  return 'Gatilhos de enviarFilaEmails ativos: ' + qtd;
-}
 
 /** Monta e envia o e-mail bonito de mudança de status. */
 function sendEmailsOnStatusChange_(ata, statusAntigo, statusNovo) {

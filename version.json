@@ -1,5 +1,5 @@
 {
-  "version": "3.1.0",
+  "version": "3.1.1",
   "atualizadoEm": "2026-07-17",
-  "nota": "Ajustes: a coluna Tempo saiu (o tempo agora fica na descrição, embaixo do Envio). A coluna Status ganhou 'Situação' e 'Próximo' (a próxima ação, tipo Registrar, migrou pra cá). 'Em Protocolo' virou 'Protocolizado'. O painel financeiro ficou com as letras uniformes e rótulo claro de anexo. E os e-mails de aviso passaram a ser represados: saem só às 10h e às 15h, em vez de a cada mudança."
+  "nota": "Correção urgente: a V3.1 instalava os gatilhos de e-mail por código dentro do carregamento da tela, e isso exigia uma permissão do Google que, dentro do iframe da moldura, deixava o app EM BRANCO. Esse código foi removido (os gatilhos de 10h/15h já estão criados e continuam valendo). Nenhum dado foi tocado."
 }
