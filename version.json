@@ -1,5 +1,5 @@
 {
-  "version": "3.1.1",
+  "version": "3.0.0",
   "atualizadoEm": "2026-07-17",
-  "nota": "Correção urgente: a V3.1 instalava os gatilhos de e-mail por código dentro do carregamento da tela, e isso exigia uma permissão do Google que, dentro do iframe da moldura, deixava o app EM BRANCO. Esse código foi removido (os gatilhos de 10h/15h já estão criados e continuam valendo). Nenhum dado foi tocado."
+  "nota": "Sistema estável (V3.0): bola, fim da Pendência, financeiro no cifrão — tudo funcionando. Os 5 ajustes da V3.1 (Protocolizado, Situação/Próximo, e-mail represado) estão guardados no código, mas fora do ar: quebravam no ambiente de publicação do Google por um motivo ainda não isolado. Site permanece na versão estável."
 }
