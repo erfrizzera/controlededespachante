@@ -123,7 +123,8 @@ function getAbaUsuarios_(planilha) {
  * ========================================================================== */
 
 function getAtas() {
-  ensureMigracaoV3_(); // uma vez só: destrava "Pendência" e semeia a Bola
+  ensureMigracaoV3_();   // uma vez só: destrava "Pendência" e semeia a Bola
+  ensureTriggersEmail_(); // uma vez só: instala os gatilhos de e-mail (10h/15h)
 
   var aba = getAbaAtas_();
   var intervalo = aba.getDataRange();
@@ -501,6 +502,74 @@ function getSystemUrl_() {
   try { return ScriptApp.getService().getUrl(); } catch (e) { return ''; }
 }
 
+/* --------------------------------------------------------------------------
+ * V3: e-mail REPRESADO. Os avisos não saem na hora — vão pra uma fila (aba
+ * "FilaEmails") e um gatilho de horário dispara tudo às 10h e às 15h. Assim a
+ * caixa de entrada não é bombardeada a cada clique.
+ * ------------------------------------------------------------------------ */
+
+/** Aba "FilaEmails": um e-mail por linha, esperando a próxima janela (10h/15h). */
+function getAbaFilaEmails_(planilha) {
+  planilha = planilha || getPlanilha_();
+  var aba = planilha.getSheetByName('FilaEmails');
+  if (!aba) {
+    aba = planilha.insertSheet('FilaEmails');
+    aba.getRange(1, 1, 1, 4).setValues([['Para', 'Assunto', 'CorpoHTML', 'CorpoTexto']])
+      .setBackground('#1A365D').setFontColor('#FFFFFF').setFontWeight('bold');
+    aba.setFrozenRows(1);
+  }
+  return aba;
+}
+
+/** Põe um e-mail na fila (em vez de mandar na hora). */
+function enfileirarEmail_(para, assunto, html, texto) {
+  if (!para) return;
+  getAbaFilaEmails_().appendRow([para, assunto || '', html || '', texto || assunto || '']);
+}
+
+/**
+ * Envia tudo que está na fila e limpa. É o gatilho de 10h e 15h que chama isto;
+ * dá pra rodar na mão pelo editor também.
+ */
+function enviarFilaEmails() {
+  var aba = getAbaFilaEmails_();
+  var dados = aba.getDataRange().getValues();
+  var enviados = 0;
+  for (var i = 1; i < dados.length; i++) {
+    var para = String(dados[i][0] || '');
+    if (!para) continue;
+    try {
+      MailApp.sendEmail({ to: para, subject: String(dados[i][1] || ''), htmlBody: String(dados[i][2] || ''), body: String(dados[i][3] || ''), name: 'Cobra Brasil', noReply: true });
+      enviados++;
+    } catch (e) { Logger.log('Falha ao enviar da fila: ' + e); }
+  }
+  // Limpa a fila (apaga da última linha até a 2ª).
+  if (aba.getLastRow() > 1) aba.deleteRows(2, aba.getLastRow() - 1);
+  return enviados;
+}
+
+/**
+ * Garante os gatilhos de horário (10h e 15h). Roda uma vez, guardado por Script
+ * Property; confere os gatilhos que já existem pra não duplicar.
+ */
+function ensureTriggersEmail_() {
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty('TRIGGERS_EMAIL_V3') === 'ok') return;
+  try {
+    var jaTem = {};
+    var gatilhos = ScriptApp.getProjectTriggers();
+    for (var i = 0; i < gatilhos.length; i++) {
+      if (gatilhos[i].getHandlerFunction() === 'enviarFilaEmails') jaTem[gatilhos[i].getUniqueId()] = true;
+    }
+    // Se não houver NENHUM gatilho de enviarFilaEmails, cria os dois.
+    if (!gatilhos.some(function (g) { return g.getHandlerFunction() === 'enviarFilaEmails'; })) {
+      ScriptApp.newTrigger('enviarFilaEmails').timeBased().atHour(10).everyDays(1).create();
+      ScriptApp.newTrigger('enviarFilaEmails').timeBased().atHour(15).everyDays(1).create();
+    }
+    props.setProperty('TRIGGERS_EMAIL_V3', 'ok');
+  } catch (e) { Logger.log('ensureTriggersEmail_ falhou (tenta no próximo load): ' + e); }
+}
+
 /** Monta e envia o e-mail bonito de mudança de status. */
 function sendEmailsOnStatusChange_(ata, statusAntigo, statusNovo) {
   var emails = getNotificationEmails();
@@ -543,14 +612,8 @@ function sendEmailsOnStatusChange_(ata, statusAntigo, statusNovo) {
       "<p style='font-size:11px;color:#94a3b8;text-align:center;margin:0;'>Aviso automático do Controle Despachante — Cobra Brasil.</p>" +
     "</div>";
 
-  MailApp.sendEmail({
-    to: emails.join(','),
-    subject: assunto,
-    body: 'Ata ' + ata.id + ' (' + ata.empresa + ') — status: ' + statusNovo,
-    htmlBody: html,
-    name: 'Cobra Brasil',
-    noReply: true
-  });
+  // Represado: entra na fila e sai às 10h/15h (não manda na hora).
+  enfileirarEmail_(emails.join(','), assunto, html, 'Ata ' + ata.id + ' (' + ata.empresa + ') — status: ' + statusNovo);
 }
 
 
@@ -836,7 +899,8 @@ function sendDevolucaoEmail_(p) {
         (sistemaUrl ? "<a href='" + sistemaUrl + "' style='display:inline-block;background:#2563eb;color:#fff;padding:10px 18px;text-decoration:none;border-radius:8px;font-weight:600;font-size:13px;'>🖥️ Abrir sistema</a>" : "") +
       "</div>" +
     "</div>";
-  MailApp.sendEmail({ to: emails.join(','), subject: titulo, htmlBody: html, body: titulo, name: 'Cobra Brasil', noReply: true });
+  // Represado: entra na fila e sai às 10h/15h.
+  enfileirarEmail_(emails.join(','), titulo, html, titulo);
 }
 
 

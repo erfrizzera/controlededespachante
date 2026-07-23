@@ -29,6 +29,16 @@ devolve a "tela" para o Pages e mantém o motor como **peça única**. Decisão 
 
 - **Processo na Junta (coluna Status):** `Enviado → Em Protocolo → Registrada → Concluído`.
   Só isso — o status é **só sobre a Junta**. A "Pendência" que congelava a ata **acabou na V3**.
+  Na tela (V3.1) a coluna Status mostra 3 linhas: **toggle da bola**, **Situação:** (o status) e
+  **Próximo:** (a próxima ação — Protocolar/Registrar/Concluir, que saiu da coluna Ações). O
+  rótulo **"Em Protocolo" aparece como "Protocolizado"** (`nomeStatus`, só display; o dado
+  guardado continua `Em Protocolo`). A coluna "Tempo de Processo" saiu — o tempo virou uma
+  linha na descrição.
+- **E-mails represados (V3.1):** os avisos não saem na hora. Vão pra aba `FilaEmails` e um
+  **gatilho de horário** (`enviarFilaEmails`, às 10h e 15h) dispara tudo de uma vez. Os gatilhos
+  se instalam sozinhos (`ensureTriggersEmail_`, guardado por Script Property) — mas isso pede o
+  escopo `script.scriptapp`; se não instalar sozinho, criar os 2 gatilhos manualmente no painel
+  (Acionadores → `enviarFilaEmails` → tempo → diário 10h e 15h).
 - **A bola (V3):** com quem está a vez de agir. Fica na coluna Status, um toggle **liga-desliga**
   em cima do status (**Cobra azul à esquerda, despachante cinza à direita**). Guardada na coluna
   `Bola` da aba `Atas`. **Só o chat a move:** quem escreve e envia está *devolvendo* — a bola vai
@@ -59,8 +69,9 @@ Conclusão: `Data de Conclusão` (automática).
 Abas auxiliares: `Usuarios` (whitelist + perfil); `Pendencias` (o **chat/devolução** — mesmo
 nome de antes pra não perder histórico; anexos como JSON `[{nome,url}]` na coluna `Arquivo`);
 `Reembolsos` (um pedido por linha: `ID da Ata`, `Data/Hora`, `Autor`, `Valor`, `Justificativa`,
-`Arquivo` (JSON de vários anexos), `Baixado Em` (V3: quando foi pago)). Não há mais coluna
-**Arquivos** na tela — a pasta do Drive virou um botão nas Ações.
+`Arquivo` (JSON de vários anexos), `Baixado Em` (V3: quando foi pago)); `FilaEmails` (V3.1: avisos
+represados esperando a janela de 10h/15h — `Para`, `Assunto`, `CorpoHTML`, `CorpoTexto`). Não há mais
+coluna **Arquivos** na tela — a pasta do Drive virou um botão nas Ações.
 
 **Migração V3 (`ensureMigracaoV3_`):** roda uma vez (guardada por Script Property `MIGRADO_V3`)
 no primeiro `getAtas` após o deploy — destrava atas em "Pendência" (volta ao status anterior) e

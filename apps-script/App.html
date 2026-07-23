@@ -504,6 +504,8 @@
     .badge-fin-pago     { background-color: rgba(16,185,129,.12); color: #10b981; border: 1px solid rgba(16,185,129,.25); }
     .badge-fin-none     { background-color: rgba(100,116,139,.10); color: var(--text-muted); border: 1px solid var(--border-color); }
     .status-cell-stack  { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+    .status-linha { display: flex; align-items: center; gap: 6px; font-size: 10px; }
+    .status-rotulo { color: var(--text-muted); font-size: 9px; text-transform: uppercase; letter-spacing: .3px; }
 
     /* ===== "Com a bola": toggle liga-desliga de quem é a vez =====
        Compacto, dentro da coluna Status. O botão desliza pro lado do responsável:
@@ -535,6 +537,10 @@
     .fin-selo-pago { color: var(--status-registrada); background: rgba(16,185,129,.12); border: 1px solid rgba(16,185,129,.25); }
     .reembolso-pendente { border-left: 3px solid var(--color-danger); }
     .reembolso-baixado { opacity: .7; }
+    /* Uniformizar o painel financeiro em "primeira maiúscula" (sem CAIXA ALTA). */
+    #reembolso-modal .form-section-divider,
+    #reembolso-modal .fin-selo,
+    #reembolso-modal .reembolso-item-meta { text-transform: none; letter-spacing: normal; }
 
     /* ===== V2: conversa de pendência ===== */
     .conversa { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; flex-grow: 1; padding-right: 4px; margin-bottom: 16px; }
@@ -691,7 +697,7 @@
           </div>
           <div class="kpi-card" data-status="Em Protocolo">
             <div class="kpi-icon protocolo"><span class="material-icons-round">pending_actions</span></div>
-            <div class="kpi-info"><span class="kpi-label">Em Protocolo</span><h3 class="kpi-value" id="kpi-protocolo">0</h3></div>
+            <div class="kpi-info"><span class="kpi-label">Protocolizado</span><h3 class="kpi-value" id="kpi-protocolo">0</h3></div>
           </div>
           <div class="kpi-card" data-status="">
             <div class="kpi-icon pagamento"><span class="material-icons-round">payments</span></div>
@@ -713,7 +719,7 @@
               <select id="filter-status" class="select-filter">
                 <option value="">Todos os Status</option>
                 <option value="Enviado">Enviado</option>
-                <option value="Em Protocolo">Em Protocolo</option>
+                <option value="Em Protocolo">Protocolizado</option>
                 <option value="Registrada">Registrada</option>
                 <option value="Concluído">Concluído</option>
               </select>
@@ -727,7 +733,6 @@
                   <th>Empresa</th>
                   <th>Descrição</th>
                   <th>Protocolo</th>
-                  <th>Tempo de Processo</th>
                   <th>Status</th>
                   <th>Ações</th>
                 </tr>
@@ -974,7 +979,7 @@
         </div>
         <div class="file-dropzone" id="dropzone-reembolso">
           <span class="material-icons-round file-icon">receipt_long</span>
-          <p class="dropzone-text">Arraste a NF e os comprovantes — pode vários</p>
+          <p class="dropzone-text">Anexar NF e comprovantes — pode vários</p>
           <input type="file" id="file-reembolso" accept="application/pdf,image/*" class="hidden-file-input" multiple>
         </div>
         <div class="anexo-chips" id="chips-reembolso"></div>
@@ -1102,6 +1107,12 @@
         case 'Pendência': return 'pendencia';
         default: return '';
       }
+    }
+
+    // Rótulo do status na TELA. O dado guardado continua 'Em Protocolo' (não mexe
+    // no backend nem na migração); só o que o usuário vê muda para 'Protocolizado'.
+    function nomeStatus(status) {
+      return status === 'Em Protocolo' ? 'Protocolizado' : status;
     }
 
     // V2: selo da trilha financeira (independente do status da Junta).
@@ -1519,12 +1530,13 @@
           const totalCost = (Number(ata.reembolso) || 0) + (Number(ata.honorarios) || 0);
           const costText = totalCost > 0 ? `R$ ${totalCost.toFixed(2).replace('.', ',')}` : "-";
           
-          // Badge do status (Junta) + selo financeiro (V2)
-          const statusBadge = `<span class="badge badge-${getStatusClass(ata.status)}">${ata.status}</span>`;
-          // Duração do processo
+          // Badge do status (Junta). nomeStatus troca o rótulo na tela sem mexer no dado.
+          const statusBadge = `<span class="badge badge-${getStatusClass(ata.status)}">${nomeStatus(ata.status)}</span>`;
+          // Duração do processo (vai pra descrição, não tem mais coluna própria)
           const duration = calculateDuration(ata.dataEnvio, ata.status, ata.dataConclusao);
 
           // Ação da JUNTA (V3): Protocolar → Registrar → Concluir. Sem "Pendência".
+          // Agora mora na coluna Status, como "Próximo:".
           let juntaActionHTML = "";
           switch (ata.status) {
             case 'Enviado':
@@ -1537,6 +1549,9 @@
               juntaActionHTML = `<button class="btn-workflow-action action-btn-registrada" onclick="openModal('${ata.id}', 'workflow_concluir')"><span class="material-icons-round" style="font-size:11px;">task_alt</span> Concluir Junta</button>`;
               break;
           }
+          const proximoHTML = juntaActionHTML
+            ? `<div class="status-linha"><span class="status-rotulo">Próximo:</span> ${juntaActionHTML}</div>`
+            : '';
 
           // Financeiro (V3): um cifrão que abre o painel. Vermelho = há pedido sem baixa.
           const cifraoTitulo = ata.financeiroVermelho ? 'Financeiro — há pedido aguardando pagamento' : 'Financeiro — NF e reembolsos';
@@ -1557,17 +1572,22 @@
               <div style="font-size: 9px; color: var(--text-muted); display: flex; flex-direction: column; gap: 2px;">
                 <span>ID: ${ata.id}</span>
                 <span>Envio: ${formatDateString(ata.dataEnvio)}</span>
+                <span>Tempo: ${duration}</span>
               </div>
             </td>
             <td>
               <div>${ata.protocolo || '<span style="color: var(--text-muted);">-</span>'}</div>
               ${ata.dataProtocolo ? `<span style="font-size: 9px; color: var(--text-muted);">Inserido: ${formatDateString(ata.dataProtocolo)}</span>` : ''}
             </td>
-            <td><span style="font-weight: 600;">${duration}</span></td>
-            <td><div class="status-cell-stack">${renderBola(ata)}${statusBadge}</div></td>
+            <td>
+              <div class="status-cell-stack">
+                ${renderBola(ata)}
+                <div class="status-linha"><span class="status-rotulo">Situação:</span> ${statusBadge}</div>
+                ${proximoHTML}
+              </div>
+            </td>
             <td>
               <div class="action-group">
-                ${juntaActionHTML}
                 ${cifraoBtn}
                 ${pastaBtn}
                 ${chatBtn}
@@ -1824,7 +1844,7 @@
         btn.type = "button";
         btn.className = `pipeline-btn ${stage === currentStatus ? 'active' : ''}`;
         btn.setAttribute('data-status', stage);
-        btn.innerText = stage;
+        btn.innerText = nomeStatus(stage);
         btn.addEventListener('click', () => {
           document.querySelectorAll('.pipeline-btn').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');

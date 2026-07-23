@@ -1,5 +1,5 @@
 {
-  "version": "3.0.0",
+  "version": "3.1.0",
   "atualizadoEm": "2026-07-17",
-  "nota": "Reforma grande: acabou a 'Pendência' que congelava a ata. Agora um botão 'Com a bola' na coluna Status mostra de quem é a vez (Cobra azul / despachante cinza), e a bola passa quando alguém escreve no chat e devolve. O financeiro saiu do status: virou um cifrão nas Ações que abre um painel com NF/reembolsos e baixa por pedido — fica vermelho enquanto houver pedido sem pagar. A coluna Arquivos virou um botão de pasta."
+  "nota": "Ajustes: a coluna Tempo saiu (o tempo agora fica na descrição, embaixo do Envio). A coluna Status ganhou 'Situação' e 'Próximo' (a próxima ação, tipo Registrar, migrou pra cá). 'Em Protocolo' virou 'Protocolizado'. O painel financeiro ficou com as letras uniformes e rótulo claro de anexo. E os e-mails de aviso passaram a ser represados: saem só às 10h e às 15h, em vez de a cada mudança."
 }
