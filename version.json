@@ -1,5 +1,5 @@
 {
-  "version": "3.0.0",
-  "atualizadoEm": "2026-07-17",
-  "nota": "Sistema estável (V3.0): bola, fim da Pendência, financeiro no cifrão — tudo funcionando. Os 5 ajustes da V3.1 (Protocolizado, Situação/Próximo, e-mail represado) estão guardados no código, mas fora do ar: quebravam no ambiente de publicação do Google por um motivo ainda não isolado. Site permanece na versão estável."
+  "version": "3.1.0",
+  "atualizadoEm": "2026-07-29",
+  "nota": "V3.1 no ar: acabamentos sobre a base V3.0. Tempo de processo saiu da coluna e virou linha na descrição (item 1); coluna Status ganhou 'Situação:' e 'Próximo:' com os botões da Junta (item 2); rótulo 'Protocolizado' (item 3); painel financeiro uniformizado em primeira maiúscula (item 5); cifrão do financeiro reposicionado por último nos ícones de ação. Item 4 (e-mail represado) cancelado — avisos voltam a sair na hora."
 }
