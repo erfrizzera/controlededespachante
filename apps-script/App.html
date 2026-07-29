@@ -727,7 +727,6 @@
                   <th>Empresa</th>
                   <th>Descrição</th>
                   <th>Protocolo</th>
-                  <th>Tempo de Processo</th>
                   <th>Status</th>
                   <th>Ações</th>
                 </tr>
@@ -1563,13 +1562,13 @@
               <div style="font-size: 9px; color: var(--text-muted); display: flex; flex-direction: column; gap: 2px;">
                 <span>ID: ${ata.id}</span>
                 <span>Envio: ${formatDateString(ata.dataEnvio)}</span>
+                <span>Tempo: ${duration}</span>
               </div>
             </td>
             <td>
               <div>${ata.protocolo || '<span style="color: var(--text-muted);">-</span>'}</div>
               ${ata.dataProtocolo ? `<span style="font-size: 9px; color: var(--text-muted);">Inserido: ${formatDateString(ata.dataProtocolo)}</span>` : ''}
             </td>
-            <td><span style="font-weight: 600;">${duration}</span></td>
             <td><div class="status-cell-stack">${renderBola(ata)}${statusBadge}</div></td>
             <td>
               <div class="action-group">
