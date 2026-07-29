@@ -361,10 +361,40 @@ function deleteAta(id) {
  * 7. DRIVE — uma pasta por ata; o PDF mora aqui, a planilha guarda só o link
  * ========================================================================== */
 
-/** Acha (ou cria) a pasta raiz de arquivos do sistema. */
+/** Acha (ou cria) a pasta raiz de arquivos do sistema.
+ *  Blindagem (2026-07-24): lembra o ID da pasta e o ID do PAI dela nas Script
+ *  Properties. Assim: (a) sobrevive a renomear/mover a pasta (acha pelo ID);
+ *  e (b) se um dia a pasta sumir, recria DENTRO do pai lembrado (a pasta do
+ *  projeto) em vez de soltar na RAIZ do Meu Drive. */
 function getPastaRaiz_() {
-  var pastas = DriveApp.getFoldersByName(PASTA_RAIZ_DRIVE);
-  return pastas.hasNext() ? pastas.next() : DriveApp.createFolder(PASTA_RAIZ_DRIVE);
+  var props = PropertiesService.getScriptProperties();
+
+  // 1) Tenta pelo ID guardado (sobrevive a renomear/mover).
+  var idSalvo = props.getProperty('PASTA_RAIZ_ID');
+  if (idSalvo) {
+    try {
+      var f = DriveApp.getFolderById(idSalvo);
+      if (!f.isTrashed()) return f;
+    } catch (e) { /* ID inválido — cai no nome */ }
+  }
+
+  // 2) Acha pelo nome; ao achar, memoriza o ID e o pai.
+  var achadas = DriveApp.getFoldersByName(PASTA_RAIZ_DRIVE);
+  var pasta;
+  if (achadas.hasNext()) {
+    pasta = achadas.next();
+    var pais = pasta.getParents();
+    if (pais.hasNext()) props.setProperty('PASTA_PAI_ID', pais.next().getId());
+  } else {
+    // 3) Sumiu — recria DENTRO do pai lembrado; nunca na raiz.
+    var paiId = props.getProperty('PASTA_PAI_ID');
+    var pai = null;
+    if (paiId) { try { pai = DriveApp.getFolderById(paiId); } catch (e) { pai = null; } }
+    pasta = pai ? pai.createFolder(PASTA_RAIZ_DRIVE) : DriveApp.createFolder(PASTA_RAIZ_DRIVE);
+  }
+
+  props.setProperty('PASTA_RAIZ_ID', pasta.getId());
+  return pasta;
 }
 
 /** Acha (ou cria) a subpasta de uma ata e devolve a PASTA. */
@@ -501,61 +531,11 @@ function getSystemUrl_() {
   try { return ScriptApp.getService().getUrl(); } catch (e) { return ''; }
 }
 
-/* --------------------------------------------------------------------------
- * V3: e-mail REPRESADO. Os avisos não saem na hora — vão pra uma fila (aba
- * "FilaEmails") e um gatilho de horário dispara tudo às 10h e às 15h. Assim a
- * caixa de entrada não é bombardeada a cada clique.
- * ------------------------------------------------------------------------ */
-
-/** Aba "FilaEmails": um e-mail por linha, esperando a próxima janela (10h/15h). */
-function getAbaFilaEmails_(planilha) {
-  planilha = planilha || getPlanilha_();
-  var aba = planilha.getSheetByName('FilaEmails');
-  if (!aba) {
-    aba = planilha.insertSheet('FilaEmails');
-    aba.getRange(1, 1, 1, 4).setValues([['Para', 'Assunto', 'CorpoHTML', 'CorpoTexto']])
-      .setBackground('#1A365D').setFontColor('#FFFFFF').setFontWeight('bold');
-    aba.setFrozenRows(1);
-  }
-  return aba;
-}
-
-/** Põe um e-mail na fila (em vez de mandar na hora). */
-function enfileirarEmail_(para, assunto, html, texto) {
-  if (!para) return;
-  getAbaFilaEmails_().appendRow([para, assunto || '', html || '', texto || assunto || '']);
-}
-
-/**
- * Envia tudo que está na fila e limpa. É o gatilho de 10h e 15h que chama isto;
- * dá pra rodar na mão pelo editor também.
- */
-function enviarFilaEmails() {
-  var aba = getAbaFilaEmails_();
-  var dados = aba.getDataRange().getValues();
-  var enviados = 0;
-  for (var i = 1; i < dados.length; i++) {
-    var para = String(dados[i][0] || '');
-    if (!para) continue;
-    try {
-      MailApp.sendEmail({ to: para, subject: String(dados[i][1] || ''), htmlBody: String(dados[i][2] || ''), body: String(dados[i][3] || ''), name: 'Cobra Brasil', noReply: true });
-      enviados++;
-    } catch (e) { Logger.log('Falha ao enviar da fila: ' + e); }
-  }
-  // Limpa a fila (apaga da última linha até a 2ª).
-  if (aba.getLastRow() > 1) aba.deleteRows(2, aba.getLastRow() - 1);
-  return enviados;
-}
-
-/**
- * ATENÇÃO (V3.1.1): o código que CRIAVA os gatilhos (ScriptApp.newTrigger) foi
- * removido de propósito. Ele exige o escopo `script.scriptapp`, e num web app
- * dentro de iframe isso dispara uma tela de autorização que o iframe bloqueia —
- * deixando o app EM BRANCO. Os gatilhos de 10h/15h já foram criados à mão e
- * continuam valendo (moram na config do projeto, não no código). Se um dia
- * precisar recriá-los, faça pelo painel Acionadores, NUNCA por código chamado
- * pelo web app.
- */
+/* (V3.1 — item 4 CANCELADO) O represamento de e-mail (fila + gatilhos de 10h/15h)
+ * foi removido a pedido do dono. Os avisos voltam a sair NA HORA, como sempre.
+ * Se um dia quiser represar de novo, NÃO instale gatilho por código chamado pelo
+ * web app (o escopo script.scriptapp trava o app dentro do iframe). E lembre de
+ * apagar os dois gatilhos antigos de enviarFilaEmails no painel Acionadores. */
 
 /** Monta e envia o e-mail bonito de mudança de status. */
 function sendEmailsOnStatusChange_(ata, statusAntigo, statusNovo) {
@@ -599,8 +579,14 @@ function sendEmailsOnStatusChange_(ata, statusAntigo, statusNovo) {
       "<p style='font-size:11px;color:#94a3b8;text-align:center;margin:0;'>Aviso automático do Controle Despachante — Cobra Brasil.</p>" +
     "</div>";
 
-  // Represado: entra na fila e sai às 10h/15h (não manda na hora).
-  enfileirarEmail_(emails.join(','), assunto, html, 'Ata ' + ata.id + ' (' + ata.empresa + ') — status: ' + statusNovo);
+  MailApp.sendEmail({
+    to: emails.join(','),
+    subject: assunto,
+    body: 'Ata ' + ata.id + ' (' + ata.empresa + ') — status: ' + statusNovo,
+    htmlBody: html,
+    name: 'Cobra Brasil',
+    noReply: true
+  });
 }
 
 
@@ -886,8 +872,7 @@ function sendDevolucaoEmail_(p) {
         (sistemaUrl ? "<a href='" + sistemaUrl + "' style='display:inline-block;background:#2563eb;color:#fff;padding:10px 18px;text-decoration:none;border-radius:8px;font-weight:600;font-size:13px;'>🖥️ Abrir sistema</a>" : "") +
       "</div>" +
     "</div>";
-  // Represado: entra na fila e sai às 10h/15h.
-  enfileirarEmail_(emails.join(','), titulo, html, titulo);
+  MailApp.sendEmail({ to: emails.join(','), subject: titulo, htmlBody: html, body: titulo, name: 'Cobra Brasil', noReply: true });
 }
 
 
