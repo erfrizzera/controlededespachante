@@ -32,13 +32,15 @@ devolve a "tela" para o Pages e mantém o motor como **peça única**. Decisão 
   Na tela (V3.1) a coluna Status mostra 3 linhas: **toggle da bola**, **Situação:** (o status) e
   **Próximo:** (a próxima ação — Protocolar/Registrar/Concluir, que saiu da coluna Ações). O
   rótulo **"Em Protocolo" aparece como "Protocolizado"** (`nomeStatus`, só display; o dado
-  guardado continua `Em Protocolo`). A coluna "Tempo de Processo" saiu — o tempo virou uma
-  linha na descrição.
-- **E-mails represados (V3.1):** os avisos não saem na hora. Vão pra aba `FilaEmails` e um
-  **gatilho de horário** (`enviarFilaEmails`, às 10h e 15h) dispara tudo de uma vez. Os gatilhos
-  se instalam sozinhos (`ensureTriggersEmail_`, guardado por Script Property) — mas isso pede o
-  escopo `script.scriptapp`; se não instalar sozinho, criar os 2 gatilhos manualmente no painel
-  (Acionadores → `enviarFilaEmails` → tempo → diário 10h e 15h).
+  guardado continua `Em Protocolo`). A coluna **"Tempo de Processo" foi removida** da tabela
+  (item 1). A ideia original de mover o tempo pra dentro da descrição foi **descartada**: aquela
+  versão quebrava o app no ambiente real do Apps Script (tela vazia + botões travados), embora
+  renderizasse certo no teste local. Ficou só a remoção da coluna, que é estável.
+- **E-mails na hora (item 4 cancelado):** a ideia de represar os avisos e mandar só às 10h/15h
+  (aba `FilaEmails` + gatilhos `enviarFilaEmails`) foi **abandonada**. Os avisos voltaram a sair
+  **na hora**. A função `enviarFilaEmails` saiu do código e os 2 gatilhos foram apagados à mão no
+  painel Acionadores. **Lição que ficou:** nunca criar/instalar gatilho por código chamado pela
+  tela (escopo `script.scriptapp` → auth bloqueada pelo iframe → app em branco permanente).
 - **A bola (V3):** com quem está a vez de agir. Fica na coluna Status, um toggle **liga-desliga**
   em cima do status (**Cobra azul à esquerda, despachante cinza à direita**). Guardada na coluna
   `Bola` da aba `Atas`. **Só o chat a move:** quem escreve e envia está *devolvendo* — a bola vai
@@ -69,8 +71,8 @@ Conclusão: `Data de Conclusão` (automática).
 Abas auxiliares: `Usuarios` (whitelist + perfil); `Pendencias` (o **chat/devolução** — mesmo
 nome de antes pra não perder histórico; anexos como JSON `[{nome,url}]` na coluna `Arquivo`);
 `Reembolsos` (um pedido por linha: `ID da Ata`, `Data/Hora`, `Autor`, `Valor`, `Justificativa`,
-`Arquivo` (JSON de vários anexos), `Baixado Em` (V3: quando foi pago)); `FilaEmails` (V3.1: avisos
-represados esperando a janela de 10h/15h — `Para`, `Assunto`, `CorpoHTML`, `CorpoTexto`). Não há mais
+`Arquivo` (JSON de vários anexos), `Baixado Em` (V3: quando foi pago)). *(A aba `FilaEmails` era do
+item 4 — e-mail represado, cancelado; pode ser ignorada/apagada, não é mais usada.)* Não há mais
 coluna **Arquivos** na tela — a pasta do Drive virou um botão nas Ações.
 
 **Migração V3 (`ensureMigracaoV3_`):** roda uma vez (guardada por Script Property `MIGRADO_V3`)
@@ -127,19 +129,28 @@ Controle de Despachante/
 
 ## Status
 
-**V2.2.0 no código (2026-07-17).** Endereço: https://erfrizzera.github.io/controlededespachante/
+**V3.1.0 no ar (2026-07-29).** Endereço: https://erfrizzera.github.io/controlededespachante/
 
-Estado real da implantação (conferido com `clasp list-deployments` em 2026-07-17 — o texto
-anterior aqui dizia que a V2.1 não tinha subido, e **estava errado**; ela é a versão 4 e está
-no ar desde 10/07):
+Estado real da implantação (conferido com `clasp list-deployments` em 2026-07-29):
 
 | Onde | O quê |
 |---|---|
 | Implantação de produção | `AKfycbz8FqcbL2DqwkqUH0vmoJ503Vui7G7wwD718-QZrGpVeSUXzNgSPN2g5JG9FrgWeMnF` |
-| Versão servida hoje | **7** (V2.2.0) — no ar desde 17/07, conferido com `list-deployments` |
-| Versões 5 e 6 | passos intermediários do mesmo dia; a 7 contém tudo |
+| Versão servida hoje | **19** (V3.1) — no ar desde 29/07 |
+| Base estável de emergência | versão **8** = V3.0 puro (`update-deployment -V 8 <deploymentId>`) |
+
+**V3.1 = base V3.0 + item 2 (Situação/Próximo) + item 3 (Protocolizado) + item 5 (financeiro em
+primeira maiúscula) + cifrão por último + coluna "Tempo de Processo" removida.** Itens 2, 5 e a
+remoção da coluna foram publicados **um de cada vez** (versões 16→19) porque o item 1 original
+(tempo na descrição) quebrava o app no ar; ver a lição em "Domínio (V3)".
 
 **Nada pendente de implantação.** Código, versão e implantação estão alinhados.
+
+> **Armadilha reconfirmada em 29/07 (deploy):** logo após cada `update-deployment` o app pode abrir
+> **vazio / com logout travado** por causa do cold-start + deslogamento — esperar ~1 min, dar
+> `Ctrl+Shift+R` e relogar antes de julgar. **MAS:** se reverter pra versão estável e ela volta a
+> funcionar na hora enquanto a nova continua quebrada, aí **não é cold-start — é a versão nova**, e
+> a saída é isolar item a item (foi assim que se achou que o item 1 na descrição era o culpado).
 
 Para publicar uma versão nova (o `clasp` **não** está instalado; use `npx`):
 
@@ -188,6 +199,21 @@ No painel, o mesmo: Implantar → Gerenciar implantações → lápis → versã
   - **Não confirmado antes de publicar:** se o Google expõe o cabeçalho `Location` (o endereço
     da sessão) ao nosso domínio. Se não expuser, o código cai sozinho no envio de **uma tacada
     só** (`subirDeUmaVez`) — perde a porcentagem e o retomar, não o envio.
+- **V3:** a **bola** (com quem está a vez, coluna `Bola`, movida só pelo chat/devolução); fim da
+  **"Pendência"** que congelava a ata; **financeiro no cifrão** (painel lateral com NF/reembolsos,
+  baixa por pedido, cifrão vermelho enquanto houver pedido sem baixa). Upload direto pro Drive.
+- **V3.1:** acabamentos, publicados **um de cada vez** (implantações 16→19): **"Protocolizado"**
+  (rótulo de display do "Em Protocolo"); coluna Status com **"Situação:"** e **"Próximo:"** (os
+  botões da Junta migraram das Ações pra lá); **painel financeiro em primeira maiúscula**; cifrão
+  **por último** nos ícones de ação; coluna **"Tempo de Processo" removida**.
+  - **A saga do item 1 (lição cara):** a 1ª ideia — mover o tempo pra dentro da descrição —
+    passava no **teste local com backend simulado** mas **quebrava o app no ar** (tela vazia +
+    logout travado). Backend e manifesto eram idênticos à versão boa, então o suspeito era só o
+    `App.html`. Como o sintoma era **idêntico** ao cold-start, foi confundido com ambiente várias
+    vezes. O que **isolou de verdade**: reverter pra versão estável fazia tudo voltar **na hora**
+    (logo não era cold-start), e publicar **item a item** mostrou que só o item 1 quebrava. Solução
+    pragmática: **desistir de mover pra descrição e só remover a coluna** — estável. O porquê exato
+    do item-1-original quebrar ficou **sem diagnóstico** (aberto, se um dia interessar).
 - **Testes:** `node testes/upload.test.js` — o **único** teste do projeto, e de propósito. O
   upload grande só falha em produção, com arquivo de dezenas de MB; e a tela publicada não dá
   para automatizar (o iframe aninhado do Apps Script não aceita clique de fora). Mexeu no
