@@ -1530,13 +1530,12 @@
           const totalCost = (Number(ata.reembolso) || 0) + (Number(ata.honorarios) || 0);
           const costText = totalCost > 0 ? `R$ ${totalCost.toFixed(2).replace('.', ',')}` : "-";
           
-          // Badge do status (Junta). nomeStatus troca o rótulo na tela sem mexer no dado.
+          // Badge do status (Junta) + selo financeiro (V2)
           const statusBadge = `<span class="badge badge-${getStatusClass(ata.status)}">${nomeStatus(ata.status)}</span>`;
-          // Duração do processo (vai pra descrição, não tem mais coluna própria)
+          // Duração do processo
           const duration = calculateDuration(ata.dataEnvio, ata.status, ata.dataConclusao);
 
           // Ação da JUNTA (V3): Protocolar → Registrar → Concluir. Sem "Pendência".
-          // Agora mora na coluna Status, como "Próximo:".
           let juntaActionHTML = "";
           switch (ata.status) {
             case 'Enviado':
@@ -1572,7 +1571,6 @@
               <div style="font-size: 9px; color: var(--text-muted); display: flex; flex-direction: column; gap: 2px;">
                 <span>ID: ${ata.id}</span>
                 <span>Envio: ${formatDateString(ata.dataEnvio)}</span>
-                <span>Tempo: ${duration}</span>
               </div>
             </td>
             <td>

@@ -1,5 +1,5 @@
 {
   "version": "3.1.0",
   "atualizadoEm": "2026-07-29",
-  "nota": "V3.1 no ar: acabamentos sobre a base V3.0. Tempo de processo saiu da coluna e virou linha na descrição (item 1); coluna Status ganhou 'Situação:' e 'Próximo:' com os botões da Junta (item 2); rótulo 'Protocolizado' (item 3); painel financeiro uniformizado em primeira maiúscula (item 5); cifrão do financeiro reposicionado por último nos ícones de ação. Item 4 (e-mail represado) cancelado — avisos voltam a sair na hora."
+  "nota": "V3.1 no ar (implantação 19): acabamentos sobre a base V3.0. Coluna 'Tempo de Processo' removida da tabela (item 1 virou lógica simples — só tirar a coluna; a ideia de mover pra descrição foi descartada por quebrar o app no ambiente real); coluna Status ganhou 'Situação:' e 'Próximo:' com os botões da Junta (item 2); rótulo 'Protocolizado' (item 3); painel financeiro uniformizado em primeira maiúscula (item 5); cifrão do financeiro reposicionado por último nos ícones de ação. Item 4 (e-mail represado) cancelado — avisos saem na hora."
 }
