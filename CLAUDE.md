@@ -129,15 +129,19 @@ Controle de Despachante/
 
 ## Status
 
-**V3.1.0 no ar (2026-07-29).** Endereço: https://erfrizzera.github.io/controlededespachante/
+**V3.2.0 no ar (2026-08-21).** Endereço: https://erfrizzera.github.io/controlededespachante/
 
-Estado real da implantação (conferido com `clasp list-deployments` em 2026-07-29):
+Estado real da implantação (conferido com `clasp list-deployments` em 2026-08-21):
 
 | Onde | O quê |
 |---|---|
 | Implantação de produção | `AKfycbz8FqcbL2DqwkqUH0vmoJ503Vui7G7wwD718-QZrGpVeSUXzNgSPN2g5JG9FrgWeMnF` |
-| Versão servida hoje | **19** (V3.1) — no ar desde 29/07 |
-| Base estável de emergência | versão **8** = V3.0 puro (`update-deployment -V 8 <deploymentId>`) |
+| Versão servida hoje | **21** (V3.2 completa) — no ar desde 21/08 |
+| Base estável anterior | versão **20** = V3.2 sem a ordenação; **19** = V3.1; **8** = V3.0 puro |
+
+**V3.2 = V3.1 + ordenação pelo cabeçalho + filtro "Exibir" + "Arquivado na Rede".** Saiu em dois
+tempos: a versão **20** (03/08) levou o filtro e o checkbox; a **21** (21/08) acrescentou a
+ordenação. Sem sustos desta vez — subiu de uma vez e funcionou.
 
 **V3.1 = base V3.0 + item 2 (Situação/Próximo) + item 3 (Protocolizado) + item 5 (financeiro em
 primeira maiúscula) + cifrão por último + coluna "Tempo de Processo" removida.** Itens 2, 5 e a
@@ -151,6 +155,13 @@ remoção da coluna foram publicados **um de cada vez** (versões 16→19) porqu
 > `Ctrl+Shift+R` e relogar antes de julgar. **MAS:** se reverter pra versão estável e ela volta a
 > funcionar na hora enquanto a nova continua quebrada, aí **não é cold-start — é a versão nova**, e
 > a saída é isolar item a item (foi assim que se achou que o item 1 na descrição era o culpado).
+
+> **Máquina nova precisa de Node (descoberto em 21/08):** o projeto vive numa pasta sincronizada
+> pelo Drive, então ele *aparece* em qualquer computador — mas o **Node/npm e o login do clasp
+> não vêm junto**. Sem eles o `npx` nem existe e a publicação para. Nesta máquina resolveu-se com
+> `winget install --id OpenJS.NodeJS.LTS --scope user` (instala portátil, sem admin, e **não entra
+> no PATH da sessão atual** — chame pelo caminho completo ou abra um terminal novo) seguido de
+> `clasp login`, que só o dono da conta pode aprovar no navegador.
 
 Para publicar uma versão nova (o `clasp` **não** está instalado; use `npx`):
 
