@@ -33,7 +33,8 @@ var CABECALHO_ATAS = [
   'Data de Conclusão',               // 15
   'Status Anterior',                 // 16
   'Status Financeiro',               // 17  (legado V2; a V3 usa a baixa por pedido na aba Reembolsos)
-  'Bola'                             // 18  (V3: com quem está a bola — 'Cobra' | 'Despachante')
+  'Bola',                            // 18  (V3: com quem está a bola — 'Cobra' | 'Despachante')
+  'Arquivado na Rede'                // 19  (V3.2: admin marcou que arquivou o doc na rede; guarda a data)
 ];
 
 
@@ -145,6 +146,9 @@ function getAtas() {
     var bola = String(linha[17] || '').trim();
     if (bola !== 'Cobra' && bola !== 'Despachante') bola = 'Despachante';
 
+    // Arquivado na Rede (V3.2): a célula guarda a data em que o admin marcou.
+    var arqRede = linha[18];
+
     atas.push({
       id:                id,
       empresa:           String(linha[1]),
@@ -168,7 +172,9 @@ function getAtas() {
       statusAnterior:    String(linha[15] || ''),
       statusFinanceiro:  String(linha[16] || ''),
       bola:              bola,
-      financeiroVermelho: !!comVermelho[id] // true = há pedido de reembolso sem baixa
+      financeiroVermelho: !!comVermelho[id], // true = há pedido de reembolso sem baixa
+      arquivadoRede:     !!(arqRede && String(arqRede).trim()), // V3.2: doc arquivado na rede (só admin marca)
+      arquivadoRedeEm:   arqRede instanceof Date ? Utilities.formatDate(arqRede, tz, 'dd/MM/yyyy') : String(arqRede || '')
     });
   }
   return atas;
@@ -746,6 +752,24 @@ function getPermissao_(email) {
 /* ==========================================================================
  * 13. TRILHA FINANCEIRA (V2) — independente do status da Junta
  * ========================================================================== */
+
+/**
+ * V3.2 — marca/desmarca "Arquivado na Rede" (coluna 19). Guarda a data quando
+ * marca, limpa quando desmarca. Só o admin usa isto (checado na tela). Não mexe
+ * em status nem na bola: é um controle interno da Cobra de que o documento já
+ * foi guardado na rede física.
+ */
+function setArquivadoRede(ataId, valor) {
+  var aba = getAbaAtas_();
+  var dados = aba.getDataRange().getValues();
+  for (var i = 1; i < dados.length; i++) {
+    if (String(dados[i][0]) === String(ataId)) {
+      aba.getRange(i + 1, 19).setValue(valor ? new Date() : '');
+      return 'Sucesso';
+    }
+  }
+  return 'Não encontrado';
+}
 
 /** Muda só o Status Financeiro de uma ata (Custos lançados / Pendente pagamento Cobra / Pago). */
 function setStatusFinanceiro(ataId, novo) {

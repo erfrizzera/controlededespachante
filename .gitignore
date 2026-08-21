@@ -2,3 +2,19 @@ node_modules/
 *.log
 .DS_Store
 Thumbs.db
+
+# --- Migração (2026-07-24): sistema e documentos trazidos do Drive ---
+# A pasta de atas em PDF, a planilha (armazém) e o Apps Script (motor) agora
+# moram DENTRO da pasta do projeto, sincronizados pelo Google Drive. Eles são
+# dados/sistema vivo, não código — o git os ignora pra não inchar o repositório.
+# A pasta de dados inteira (subpasta na raiz do repositório, vinda do Drive):
+/Dados (atas, planilha e app)/
+Controle Despachante — Arquivos/
+Controle Despachante — Base de Dados*
+Controle Despachante.gscript
+# Atalhos de arquivos nativos do Google (aparecem no disco pelo Drive p/ Desktop)
+*.gsheet
+*.gscript
+*.gdoc
+*.gslides
+*.glink

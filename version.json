@@ -1,5 +1,5 @@
 {
-  "version": "3.1.0",
-  "atualizadoEm": "2026-07-29",
-  "nota": "V3.1 no ar (implantação 19): acabamentos sobre a base V3.0. Coluna 'Tempo de Processo' removida da tabela (item 1 virou lógica simples — só tirar a coluna; a ideia de mover pra descrição foi descartada por quebrar o app no ambiente real); coluna Status ganhou 'Situação:' e 'Próximo:' com os botões da Junta (item 2); rótulo 'Protocolizado' (item 3); painel financeiro uniformizado em primeira maiúscula (item 5); cifrão do financeiro reposicionado por último nos ícones de ação. Item 4 (e-mail represado) cancelado — avisos saem na hora."
+  "version": "3.2.0",
+  "atualizadoEm": "2026-08-21",
+  "nota": "V3.2: ordenacao pelo cabecalho da tabela (Empresa=alfabetica, Descricao=por ID, Protocolo=por numero, Status=pela ordem do processo; Acoes nao ordena); filtro 'Exibir' na barra do painel (Ocultar finalizadas + Com pendência de pagamento); checkbox 'Arquivado na Rede' na coluna Status, só do admin (nova coluna 19 na aba Atas, guarda a data; setArquivadoRede no backend). Sobre a base V3.1."
 }

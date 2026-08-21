@@ -305,6 +305,15 @@
     .data-table th { padding: 14px 16px; font-weight: 600; color: var(--text-secondary); border-bottom: 2px solid var(--border-color); background-color: rgba(15, 21, 36, 0.2); }
     body.light-theme .data-table th { background-color: rgba(0, 0, 0, 0.02); }
     .data-table td { padding: 16px; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
+
+    /* V3.2: cabecalho ordenavel. So as colunas com data-ordem clicam; "Acoes" nao ordena.
+       1o clique = crescente, 2o = decrescente, 3o = volta a ordem natural da planilha. */
+    .data-table th[data-ordem] { cursor: pointer; user-select: none; white-space: nowrap; }
+    .data-table th[data-ordem]:hover { color: var(--text-primary); }
+    .data-table th .seta-ordem { font-size: 13px; vertical-align: -3px; opacity: .3; margin-left: 2px; }
+    .data-table th[data-ordem]:hover .seta-ordem { opacity: .6; }
+    .data-table th.ordenando { color: var(--text-primary); }
+    .data-table th.ordenando .seta-ordem { opacity: 1; color: var(--color-primary); }
     .data-table tbody tr:hover { background-color: rgba(26, 38, 64, 0.15); }
     body.light-theme .data-table tbody tr:hover { background-color: rgba(0, 0, 0, 0.02); }
     .company-cell { font-weight: 600; }
@@ -506,6 +515,13 @@
     .status-cell-stack  { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
     .status-linha { display: flex; align-items: center; gap: 6px; font-size: 10px; }
     .status-rotulo { color: var(--text-muted); font-size: 9px; text-transform: uppercase; letter-spacing: .3px; }
+
+    /* V3.2: "Arquivado na Rede" — checkbox só do admin, na coluna Status. */
+    .arquivo-rede { display: inline-flex; align-items: center; gap: 6px; font-size: 9px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .3px; color: var(--text-muted); cursor: pointer;
+      user-select: none; margin-top: 2px; }
+    .arquivo-rede input { width: 14px; height: 14px; margin: 0; cursor: pointer; accent-color: var(--color-success); flex-shrink: 0; }
+    .arquivo-rede.ativo { color: var(--status-registrada); }
 
     /* ===== "Com a bola": toggle liga-desliga de quem é a vez =====
        Compacto, dentro da coluna Status. O botão desliza pro lado do responsável:
@@ -723,6 +739,11 @@
                 <option value="Registrada">Registrada</option>
                 <option value="Concluído">Concluído</option>
               </select>
+              <select id="filter-view" class="select-filter">
+                <option value="">Todas (inclui finalizadas)</option>
+                <option value="ativas">Ocultar finalizadas</option>
+                <option value="pendpag">Com pendência de pagamento</option>
+              </select>
             </div>
           </div>
 
@@ -730,10 +751,10 @@
             <table class="data-table" id="atas-table">
               <thead>
                 <tr>
-                  <th>Empresa</th>
-                  <th>Descrição</th>
-                  <th>Protocolo</th>
-                  <th>Status</th>
+                  <th data-ordem="empresa">Empresa<span class="material-icons-round seta-ordem">unfold_more</span></th>
+                  <th data-ordem="id">Descrição<span class="material-icons-round seta-ordem">unfold_more</span></th>
+                  <th data-ordem="protocolo">Protocolo<span class="material-icons-round seta-ordem">unfold_more</span></th>
+                  <th data-ordem="status">Status<span class="material-icons-round seta-ordem">unfold_more</span></th>
                   <th>Ações</th>
                 </tr>
               </thead>
@@ -1219,6 +1240,9 @@
       searchQuery: "",
       selectedCompanyFilter: "",
       selectedStatusFilter: "",
+      selectedViewFilter: "",
+      sortColumn: "",          // V3.2: coluna clicada no cabeçalho ("" = ordem natural da planilha)
+      sortDirection: "asc",    // V3.2: 'asc' | 'desc'
       currentFolderFilter: "all",
       isGoogleAppsScript: false,
       role: 'admin'
@@ -1326,6 +1350,7 @@
     const searchInput = document.getElementById('search-input');
     const filterCompany = document.getElementById('filter-company');
     const filterStatus = document.getElementById('filter-status');
+    const filterView = document.getElementById('filter-view');
     const btnCollapseSidebar = document.getElementById('btn-collapse-sidebar');
     const btnExpandSidebar = document.getElementById('btn-expand-sidebar');
     
@@ -1444,6 +1469,24 @@
       searchInput.addEventListener('input', (e) => { state.searchQuery = e.target.value; renderDashboard(); });
       filterCompany.addEventListener('change', (e) => { state.selectedCompanyFilter = e.target.value; renderDashboard(); });
       filterStatus.addEventListener('change', (e) => { state.selectedStatusFilter = e.target.value; renderDashboard(); });
+      filterView.addEventListener('change', (e) => { state.selectedViewFilter = e.target.value; renderDashboard(); });
+
+      // V3.2: ordenação pelo cabeçalho. Empresa = alfabética; Descrição = pelo ID;
+      // Protocolo = pelo número do protocolo; Status = pela ordem do processo.
+      // "Ações" não tem data-ordem, então não entra aqui.
+      document.querySelectorAll('#atas-table th[data-ordem]').forEach(th => {
+        th.addEventListener('click', () => {
+          const coluna = th.dataset.ordem;
+          if (state.sortColumn !== coluna) {
+            state.sortColumn = coluna; state.sortDirection = 'asc';
+          } else if (state.sortDirection === 'asc') {
+            state.sortDirection = 'desc';
+          } else {
+            state.sortColumn = ''; state.sortDirection = 'asc'; // 3o clique: ordem natural
+          }
+          renderDashboard();
+        });
+      });
 
       document.querySelectorAll('.kpi-card').forEach(card => {
         card.addEventListener('click', () => {
@@ -1507,6 +1550,51 @@
       }
     }
 
+    // ===== Ordenação da tabela (V3.2) =====
+    // O Status não ordena por alfabeto e sim pela ordem do processo na Junta —
+    // alfabético colocaria "Concluído" antes de "Enviado", que não diz nada.
+    const ORDEM_STATUS = { 'Enviado': 1, 'Em Protocolo': 2, 'Registrada': 3, 'Concluído': 4 };
+
+    function valorDeOrdem(ata, coluna) {
+      switch (coluna) {
+        case 'empresa':   return String(ata.empresa || '').trim();
+        case 'id':        return String(ata.id || '').trim();       // Descrição ordena pelo ID
+        case 'protocolo': return String(ata.protocolo || '').trim();
+        case 'status':    return ORDEM_STATUS[ata.status] || 99;
+        default:          return '';
+      }
+    }
+
+    function ordenarAtas(lista) {
+      if (!state.sortColumn) return lista;                 // ordem natural da planilha
+      const coluna = state.sortColumn;
+      const dir = state.sortDirection === 'desc' ? -1 : 1;
+      const porId = (a, b) => String(a.id).localeCompare(String(b.id), undefined, { numeric: true });
+      return lista.slice().sort((a, b) => {
+        const va = valorDeOrdem(a, coluna), vb = valorDeOrdem(b, coluna);
+        // Célula vazia (protocolo em branco, p.ex.) cai pro fim nos DOIS sentidos.
+        if (va === '' && vb === '') return porId(a, b);
+        if (va === '') return 1;
+        if (vb === '') return -1;
+        let c = (typeof va === 'number')
+          ? va - vb
+          : va.localeCompare(vb, 'pt-BR', { numeric: true, sensitivity: 'base' });
+        if (c === 0) return porId(a, b);                   // desempate estável
+        return c * dir;
+      });
+    }
+
+    // Pinta a seta na coluna ativa e devolve as outras ao neutro.
+    function atualizarSetasOrdem() {
+      document.querySelectorAll('#atas-table th[data-ordem]').forEach(th => {
+        const ativa = th.dataset.ordem === state.sortColumn;
+        th.classList.toggle('ordenando', ativa);
+        const seta = th.querySelector('.seta-ordem');
+        if (seta) seta.textContent = !ativa ? 'unfold_more'
+          : (state.sortDirection === 'asc' ? 'arrow_upward' : 'arrow_downward');
+      });
+    }
+
     // Dashboard Render
     function renderDashboard() {
       let filtered = state.atas.filter(ata => {
@@ -1515,8 +1603,16 @@
                               (ata.protocolo && ata.protocolo.toLowerCase().includes(state.searchQuery.toLowerCase()));
         const matchesCompany = state.selectedCompanyFilter === "" || ata.empresa === state.selectedCompanyFilter;
         const matchesStatus = state.selectedStatusFilter === "" || ata.status === state.selectedStatusFilter;
-        return matchesSearch && matchesCompany && matchesStatus;
+        // Filtro "Exibir": oculta finalizadas (Concluído) ou mostra só quem tem
+        // pedido de reembolso sem baixa (financeiroVermelho).
+        let matchesView = true;
+        if (state.selectedViewFilter === 'ativas') matchesView = ata.status !== 'Concluído';
+        else if (state.selectedViewFilter === 'pendpag') matchesView = !!ata.financeiroVermelho;
+        return matchesSearch && matchesCompany && matchesStatus && matchesView;
       });
+
+      filtered = ordenarAtas(filtered);
+      atualizarSetasOrdem();
 
       atasTbody.innerHTML = "";
       if (filtered.length === 0) {
@@ -1552,6 +1648,15 @@
             ? `<div class="status-linha"><span class="status-rotulo">Próximo:</span> ${juntaActionHTML}</div>`
             : '';
 
+          // Arquivado na Rede (V3.2): checkbox só do admin (classe btn-admin-only).
+          const arqRedeTitulo = ata.arquivadoRede
+            ? `Arquivado na rede em ${ata.arquivadoRedeEm || '-'} — clique para desmarcar`
+            : 'Marcar que o documento já foi arquivado na rede';
+          const arqRedeHTML = `<label class="arquivo-rede btn-admin-only ${ata.arquivadoRede ? 'ativo' : ''}" title="${arqRedeTitulo}">
+            <input type="checkbox" ${ata.arquivadoRede ? 'checked' : ''} onchange="toggleArquivadoRede('${ata.id}', this.checked)">
+            Arquivado na Rede${ata.arquivadoRede && ata.arquivadoRedeEm ? ' · ' + ata.arquivadoRedeEm : ''}
+          </label>`;
+
           // Financeiro (V3): um cifrão que abre o painel. Vermelho = há pedido sem baixa.
           const cifraoTitulo = ata.financeiroVermelho ? 'Financeiro — há pedido aguardando pagamento' : 'Financeiro — NF e reembolsos';
           const cifraoBtn = `<button class="btn-icon fin ${ata.financeiroVermelho ? 'fin-vermelho' : ''}" onclick="openFinanceiroModal('${ata.id}')" title="${cifraoTitulo}"><span class="material-icons-round">payments</span></button>`;
@@ -1582,6 +1687,7 @@
                 ${renderBola(ata)}
                 <div class="status-linha"><span class="status-rotulo">Situação:</span> ${statusBadge}</div>
                 ${proximoHTML}
+                ${arqRedeHTML}
               </div>
             </td>
             <td>
@@ -3022,6 +3128,29 @@
         hideLoading();
       }
     }
+
+    // V3.2: admin marca/desmarca "Arquivado na Rede". Atualiza otimista (sem
+    // recarregar tudo) e só avisa/reverte se o servidor falhar.
+    window.toggleArquivadoRede = function(id, checked) {
+      const ata = state.atas.find(a => a.id === id);
+      if (ata) {
+        ata.arquivadoRede = checked;
+        if (checked) {
+          const d = new Date();
+          ata.arquivadoRedeEm = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+        } else {
+          ata.arquivadoRedeEm = '';
+        }
+        renderDashboard();
+      }
+      if (!state.isGoogleAppsScript) return;
+      google.script.run
+        .withFailureHandler(function(err) {
+          avisar('Erro ao salvar "Arquivado na Rede": ' + ((err && err.message) || err));
+          if (ata) { ata.arquivadoRede = !checked; ata.arquivadoRedeEm = ''; renderDashboard(); }
+        })
+        .setArquivadoRede(id, checked);
+    };
 
     document.addEventListener('DOMContentLoaded', init);
     window.openModal = openModal;
