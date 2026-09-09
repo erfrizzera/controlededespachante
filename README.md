@@ -1,6 +1,7 @@
 # Controle de Despachante — Cobra Brasil
 
-Controle do ciclo de vida de **atas societárias** enviadas para registro na Junta Comercial.
+Controle do ciclo de vida de **atas societárias** enviadas para registro na Junta Comercial
+e, desde a V4, também dos **pedidos de outros documentos** ao despachante.
 Arquitetura **Flufa V1** (ver [`CLAUDE.md`](CLAUDE.md) para as decisões).
 
 ## Como as peças se encaixam
@@ -17,7 +18,7 @@ Arquitetura **Flufa V1** (ver [`CLAUDE.md`](CLAUDE.md) para as decisões).
 
 - **Moldura** (`index.html`) — dá um endereço bonito e esconde a URL do Google.
 - **Motor** (`apps-script/`) — faz todo o trabalho: guardar, ler, subir arquivo, avisar.
-- **Armazém** — Google Sheets (aba `Atas` + aba `Usuarios`).
+- **Armazém** — Google Sheets (abas `Atas`, `Usuarios`, `Pendencias` e `Reembolsos`).
 
 ## Roadmap da construção
 
@@ -27,6 +28,8 @@ Arquitetura **Flufa V1** (ver [`CLAUDE.md`](CLAUDE.md) para as decisões).
 - [x] **Drive / upload** — pasta por ata + upload de PDF.
 - [x] **E-mail** — aviso automático a cada mudança de status.
 - [x] **Autenticação** — login por senha, whitelist na aba `Usuarios`.
+- [x] **V4** — duas trilhas de cadastro (ata / outros documentos), central única de pedidos
+      de pagamento, check "Pagamento no Navi" e "Finalizado" com dois checks.
 - [ ] **Deploy** — publicar como Web App anônimo + apontar a moldura (ver [`docs/GUIA_DEPLOY.md`](docs/GUIA_DEPLOY.md)).
 
 ## Rodar

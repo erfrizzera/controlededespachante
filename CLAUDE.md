@@ -25,7 +25,7 @@ faz sozinho. O GitHub Pages entra como **moldura / porta de entrada (Opção 2)*
 devolve a "tela" para o Pages e mantém o motor como **peça única**. Decisão tomada por
 **intervenção mínima**: um motor só para manter, sem CORS nem deploy duplo.
 
-## Domínio (V2): duas trilhas + perfis
+## Domínio (V4): duas trilhas de cadastro + perfis
 
 - **Processo na Junta (coluna Status):** `Enviado → Em Protocolo → Registrada → Concluído`.
   Só isso — o status é **só sobre a Junta**. A "Pendência" que congelava a ata **acabou na V3**.
@@ -56,28 +56,84 @@ devolve a "tela" para o Pages e mantém o motor como **peça única**. Decisão 
   legado — a fonte da verdade agora é a baixa por pedido.)*
 - **Perfis (coluna Permissão da aba `Usuarios`):** `admin` (tudo), `cobra` (sem E-mails,
   Sheets, Correção Manual, Excluir) e `despachante` (também sem Cadastrar e Drive Geral).
+- **Navi (V4) é uma lista à parte do perfil** — coluna `Navi` (SIM/NÃO) na aba `Usuarios`.
+  Diz quem enxerga e marca o check **"Pagamento no Navi"**. Mora na planilha de propósito:
+  ligar/desligar gente não pode exigir republicação de código. A migração V4 já marca
+  `SIM` para quem tem e-mail começando em `juridico@` ou `erico.frizzera@`.
 
-## Modelo de dados (aba `Atas`, 18 colunas)
+### Item 1 (V4) — a lista já abre filtrada
+`state.selectedViewFilter` nasce em `'ativas'` e o `<option>` correspondente é o primeiro
+do select. Quem entra vê só o que está em aberto; "Todas (inclui finalizadas)" continua a
+um clique.
+
+### Item 2 (V4) — o que é "Finalizado"
+Concluir na Junta **deixou de ser o fim da linha**. `estaFinalizado(ata)` exige três coisas:
+status `Concluído` **+** `Arquivado na Rede` **+** `Pagamento no Navi`. É esse predicado que
+manda no selo da coluna Status e no filtro "Ocultar finalizadas". O meio-termo (concluído mas
+faltando um dos checks) aparece como selo laranja **"Encerrando"**, com a dica dizendo o que
+falta — não é bola de ninguém, porque **só o chat move a bola**. Os dois checks ficam
+empilhados na coluna Status: `Arquivado na Rede` (só admin) e, logo abaixo, `Pagamento no
+Navi` (só Navi=SIM).
+
+### Item 3 (V4) — vocabulário do e-mail
+"Bola" é gíria interna da tela. Nos e-mails, que saem para fora do time, a mesma ideia virou
+**"responsável atual"**: assunto `Ata 0012 — aguardando retorno: Cobra Brasil` e corpo com
+"Nova manifestação registrada". Os e-mails também sabem se o registro é ata ou documento.
+
+### Item 4 (V4) — central única de pedidos de pagamento
+Acabou a divisão entre "reembolso" e "NF". O cifrão abre **uma central só**, e cada pedido
+carrega o mínimo para virar histórico defensável: **objeto** (texto livre), **tipo de
+pagamento** (`Reembolso` | `Serviço`), **valor** e **anexo de lastro** (obrigatório). A baixa
+continua por pedido, e o cifrão fica vermelho enquanto houver qualquer pedido sem baixa.
+**Honorários deixaram de ser campo solto na ata** — viram pedido do tipo `Serviço`. A coluna
+`Honorários Despachante` fica na planilha só com o histórico, e `setHonorarios` perdeu o
+chamador. Os campos de NF/comprovante/valores saíram do modal da ata inteiros.
+
+### Item 5 (V4) — a trilha "Outros Documentos"
+Nem tudo que vai pro despachante é ata. A coluna `Tipo` separa duas trilhas:
+- `Ata` — o fluxo completo de sempre (`Enviado → Em Protocolo → Registrada → Concluído`).
+- `Documento` — o pedido simples: `Solicitado → Concluído`, **sem protocolo**. A Cobra abre
+  descrevendo o que precisa (anexo opcional); o despachante devolve anexando o documento, e
+  isso já conclui. Chat, bola, pedidos de pagamento e os dois checks funcionam igual.
+
+O tipo é escolhido **só no cadastro** — registro existente nunca troca de trilha (o
+`saveAta` ignora `ata.tipo` quando a linha já tem tipo gravado). Na tela, o documento se
+identifica por uma etiqueta "Documento" ao lado do ID, e o "Documento devolvido" reaproveita
+a coluna `Ata Registrada` (mesma coluna, rótulo diferente — igual ao que já se faz com a aba
+`Pendencias`).
+
+## Modelo de dados (aba `Atas`, 21 colunas)
 
 Identificação: `ID` (sequencial 0001…), `Empresa` (lista fixa de empresas do grupo),
 `Descrição`, `Data de Envio`, `Status`, `Status Anterior` (legado V2, não usado na V3),
-`Status Financeiro` (legado V2), `Bola` (V3: `Cobra` | `Despachante`).
+`Status Financeiro` (legado V2), `Bola` (V3: `Cobra` | `Despachante`),
+`Arquivado na Rede` (V3.2, guarda a data), `Pagamento no Navi` (V4, guarda a data),
+`Tipo` (V4: `Ata` | `Documento`).
 Documentos (PDF no Drive; a célula guarda o link): `Ata Assinada`, `Ata Registrada`,
 `Nota Fiscal`, `Comprovante de Despesa`, `Pasta no Drive`.
 Protocolo: `Número do Protocolo`, `Data do Protocolo` (automática).
-Financeiro: `Reembolso Taxas` (soma dos pedidos da aba `Reembolsos`), `Honorários Despachante`.
+Financeiro: `Reembolso Taxas` (soma de **todos** os pedidos da aba `Reembolsos`, inclusive os
+de tipo Serviço), `Honorários Despachante` (**legado V4** — só histórico).
 Conclusão: `Data de Conclusão` (automática).
 
-Abas auxiliares: `Usuarios` (whitelist + perfil); `Pendencias` (o **chat/devolução** — mesmo
-nome de antes pra não perder histórico; anexos como JSON `[{nome,url}]` na coluna `Arquivo`);
-`Reembolsos` (um pedido por linha: `ID da Ata`, `Data/Hora`, `Autor`, `Valor`, `Justificativa`,
-`Arquivo` (JSON de vários anexos), `Baixado Em` (V3: quando foi pago)). *(A aba `FilaEmails` era do
+Abas auxiliares: `Usuarios` (whitelist + perfil + **`Navi`** SIM/NÃO da V4); `Pendencias` (o
+**chat/devolução** — mesmo nome de antes pra não perder histórico; anexos como JSON
+`[{nome,url}]` na coluna `Arquivo`); `Reembolsos` (a **central de pedidos de pagamento**; o
+nome da aba fica pelo histórico — um pedido por linha: `ID da Ata`, `Data/Hora`, `Autor`,
+`Valor`, `Objeto` (era `Justificativa`), `Arquivo` (JSON de vários anexos), `Baixado Em`,
+`Tipo` (V4: `Reembolso` | `Serviço`)). *(A aba `FilaEmails` era do
 item 4 — e-mail represado, cancelado; pode ser ignorada/apagada, não é mais usada.)* Não há mais
 coluna **Arquivos** na tela — a pasta do Drive virou um botão nas Ações.
 
 **Migração V3 (`ensureMigracaoV3_`):** roda uma vez (guardada por Script Property `MIGRADO_V3`)
 no primeiro `getAtas` após o deploy — destrava atas em "Pendência" (volta ao status anterior) e
 semeia `Bola='Despachante'`. Idempotente.
+
+**Migração V4 (`ensureMigracaoV4_`):** mesma receita (`MIGRADO_V4`), também no primeiro
+`getAtas` — semeia `Tipo='Ata'` em todo registro antigo (tudo que existia era ata) e marca
+`Navi='SIM'` para quem tem e-mail começando em `juridico@` ou `erico.frizzera@`, **sem tocar
+em quem já tiver a célula preenchida**. Pedido de pagamento antigo sem `Tipo` é lido como
+`Reembolso` na hora da leitura (não precisa migrar linha).
 
 ## Regras da Flufa aplicadas
 
@@ -129,7 +185,16 @@ Controle de Despachante/
 
 ## Status
 
-**V3.2.0 no ar (2026-08-21).** Endereço: https://erfrizzera.github.io/controlededespachante/
+**V4.0.0 escrita e testada localmente em 2026-09-09 — AINDA NÃO PUBLICADA.**
+No ar continua a **V3.2.0** (implantação 21). Endereço:
+https://erfrizzera.github.io/controlededespachante/
+
+A V4 é a maior mudança desde a V3: mexe em cadastro, financeiro, coluna Status, e-mail e
+esquema de dados de uma vez. Foi validada num navegador de verdade (servidor local + página
+carregada, console limpo, os cinco itens conferidos um a um) — mas a lição do item 1 da V3.1
+manda desconfiar de teste local. **Se der tela vazia / logout travado depois de publicar:
+esperar ~1 min, `Ctrl+Shift+R`, relogar. Se voltar na hora ao reverter para a versão 21, é a
+versão nova — aí isole item a item.**
 
 Estado real da implantação (conferido com `clasp list-deployments` em 2026-08-21):
 
@@ -138,6 +203,7 @@ Estado real da implantação (conferido com `clasp list-deployments` em 2026-08-
 | Implantação de produção | `AKfycbz8FqcbL2DqwkqUH0vmoJ503Vui7G7wwD718-QZrGpVeSUXzNgSPN2g5JG9FrgWeMnF` |
 | Versão servida hoje | **21** (V3.2 completa) — no ar desde 21/08 |
 | Base estável anterior | versão **20** = V3.2 sem a ordenação; **19** = V3.1; **8** = V3.0 puro |
+| Reverter para | versão **21** (`update-deployment -V 21 <deploymentId>`) |
 
 **V3.2 = V3.1 + ordenação pelo cabeçalho + filtro "Exibir" + "Arquivado na Rede".** Saiu em dois
 tempos: a versão **20** (03/08) levou o filtro e o checkbox; a **21** (21/08) acrescentou a
@@ -148,7 +214,8 @@ primeira maiúscula) + cifrão por último + coluna "Tempo de Processo" removida
 remoção da coluna foram publicados **um de cada vez** (versões 16→19) porque o item 1 original
 (tempo na descrição) quebrava o app no ar; ver a lição em "Domínio (V3)".
 
-**Nada pendente de implantação.** Código, versão e implantação estão alinhados.
+**Pendente de implantação: a V4 inteira.** O código no git e o `version.json` já estão em
+4.0.0; a implantação ainda serve a versão 21.
 
 > **Armadilha reconfirmada em 29/07 (deploy):** logo após cada `update-deployment` o app pode abrir
 > **vazio / com logout travado** por causa do cold-start + deslogamento — esperar ~1 min, dar
@@ -225,6 +292,18 @@ No painel, o mesmo: Implantar → Gerenciar implantações → lápis → versã
     (logo não era cold-start), e publicar **item a item** mostrou que só o item 1 quebrava. Solução
     pragmática: **desistir de mover pra descrição e só remover a coluna** — estável. O porquê exato
     do item-1-original quebrar ficou **sem diagnóstico** (aberto, se um dia interessar).
+- **V4:** cinco mudanças pedidas de uma vez. (1) o filtro **já abre ocultando finalizadas**;
+  (2) check **"Pagamento no Navi"** abaixo do "Arquivado na Rede", visível por coluna `Navi`
+  na aba `Usuarios`, e **"Finalizado" passou a exigir os dois checks** além do Concluído —
+  o meio-termo virou o selo **"Encerrando"**; (3) o e-mail trocou "bola com" por
+  **"responsável atual"**; (4) o financeiro virou **uma central única de pedidos de
+  pagamento** (objeto + tipo Reembolso/Serviço + valor + lastro), sem a divisão
+  reembolso/NF e sem o campo Honorários solto; (5) nasceu a trilha **"Outros Documentos"**
+  (`Solicitado → Concluído`, sem protocolo), escolhida no cadastro.
+  - **Limpeza que veio junto:** saíram do `App.html` os modos mortos do modal
+    (`workflow_financeiro`, `workflow_pagar`, `fin_lancar`, `fin_pagar`), os campos de
+    NF/comprovante/valores, o `getFinanceiroBadge` e o `calculateDuration` — todos sem
+    chamador. Menos código morto = menos superfície para o próximo susto.
 - **Testes:** `node testes/upload.test.js` — o **único** teste do projeto, e de propósito. O
   upload grande só falha em produção, com arquivo de dezenas de MB; e a tela publicada não dá
   para automatizar (o iframe aninhado do Apps Script não aceita clique de fora). Mexeu no

@@ -1,5 +1,5 @@
 {
-  "version": "3.2.0",
-  "atualizadoEm": "2026-08-21",
-  "nota": "V3.2: ordenacao pelo cabecalho da tabela (Empresa=alfabetica, Descricao=por ID, Protocolo=por numero, Status=pela ordem do processo; Acoes nao ordena); filtro 'Exibir' na barra do painel (Ocultar finalizadas + Com pendência de pagamento); checkbox 'Arquivado na Rede' na coluna Status, só do admin (nova coluna 19 na aba Atas, guarda a data; setArquivadoRede no backend). Sobre a base V3.1."
+  "version": "4.0.0",
+  "atualizadoEm": "2026-09-09",
+  "nota": "V4: (1) ao entrar, o filtro 'Exibir' ja nasce em 'Ocultar finalizadas'; (2) check 'Pagamento no Navi' na coluna Status, visivel so para quem tem Navi=SIM na aba Usuarios (coluna nova) — Finalizado agora exige Concluido + Arquivado na Rede + Pagamento no Navi, e o meio-termo aparece como selo 'Encerrando'; (3) e-mails trocaram 'bola com' por 'responsavel atual'; (4) financeiro virou uma central unica de pedidos de pagamento (objeto livre + tipo Reembolso/Servico + valor + lastro anexado + baixa por pedido) — acabou a divisao reembolso/NF e o campo Honorarios saiu da tela (vira pedido tipo Servico); (5) segunda trilha de cadastro 'Outros Documentos' (Solicitado -> Concluido, sem protocolo), escolhida no cadastro e gravada na coluna Tipo. Sobre a base V3.2."
 }

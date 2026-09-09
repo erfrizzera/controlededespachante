@@ -34,8 +34,15 @@ var CABECALHO_ATAS = [
   'Status Anterior',                 // 16
   'Status Financeiro',               // 17  (legado V2; a V3 usa a baixa por pedido na aba Reembolsos)
   'Bola',                            // 18  (V3: com quem está a bola — 'Cobra' | 'Despachante')
-  'Arquivado na Rede'                // 19  (V3.2: admin marcou que arquivou o doc na rede; guarda a data)
+  'Arquivado na Rede',               // 19  (V3.2: admin marcou que arquivou o doc na rede; guarda a data)
+  'Pagamento no Navi',               // 20  (V4: baixa do pagamento no Navi; guarda a data. Só quem tem Navi=SIM)
+  'Tipo'                             // 21  (V4: 'Ata' | 'Documento' — duas trilhas de cadastro)
 ];
+
+// V4: os dois tipos de registro. 'Ata' segue o fluxo completo da Junta;
+// 'Documento' é o pedido simples (Solicitado → Concluído), sem protocolo.
+var TIPO_ATA       = 'Ata';
+var TIPO_DOCUMENTO = 'Documento';
 
 
 /* ==========================================================================
@@ -105,17 +112,40 @@ function getAbaAtas_() {
   return aba;
 }
 
-/** Devolve a aba "Usuarios" (whitelist de acesso: Email, Permissão, Senha). */
+/** Devolve a aba "Usuarios" (whitelist: Email, Permissão, Senha, Navi).
+ *  A coluna "Navi" (V4) é um SIM/NÃO à parte do perfil: diz quem enxerga e
+ *  marca o check "Pagamento no Navi". Fica na planilha justamente para o dono
+ *  ligar/desligar pessoas sem republicar código. */
 function getAbaUsuarios_(planilha) {
   planilha = planilha || getPlanilha_();
   var aba = planilha.getSheetByName(NOME_ABA_USUARIOS);
   if (!aba) {
     aba = planilha.insertSheet(NOME_ABA_USUARIOS);
-    aba.getRange(1, 1, 1, 3).setValues([['Email', 'Permissão', 'Senha']])
+    aba.getRange(1, 1, 1, 4).setValues([['Email', 'Permissão', 'Senha', 'Navi']])
       .setBackground('#1A365D').setFontColor('#FFFFFF').setFontWeight('bold');
     aba.setFrozenRows(1);
+  } else if (aba.getMaxColumns() < 4 || String(aba.getRange(1, 4).getValue()).trim() !== 'Navi') {
+    if (aba.getMaxColumns() < 4) aba.insertColumnsAfter(aba.getMaxColumns(), 4 - aba.getMaxColumns());
+    aba.getRange(1, 4).setValue('Navi')
+      .setBackground('#1A365D').setFontColor('#FFFFFF').setFontWeight('bold');
   }
   return aba;
+}
+
+/** V4: este e-mail pode ver/marcar o "Pagamento no Navi"? (coluna Navi = SIM) */
+function temNavi_(email) {
+  if (!email) return false;
+  var alvo = String(email).trim().toLowerCase();
+  try {
+    var dados = getAbaUsuarios_().getDataRange().getValues();
+    for (var i = 1; i < dados.length; i++) {
+      if (dados[i][0] && String(dados[i][0]).trim().toLowerCase() === alvo) {
+        var v = String(dados[i][3] || '').trim().toLowerCase();
+        return v === 'sim' || v === 'x' || v === 'true' || v === 'verdadeiro';
+      }
+    }
+  } catch (e) { Logger.log('temNavi_ falhou: ' + e); }
+  return false;
 }
 
 
@@ -125,6 +155,7 @@ function getAbaUsuarios_(planilha) {
 
 function getAtas() {
   ensureMigracaoV3_();   // uma vez só: destrava "Pendência" e semeia a Bola
+  ensureMigracaoV4_();   // uma vez só: semeia Tipo='Ata' e liga o Navi de quem já era
 
   var aba = getAbaAtas_();
   var intervalo = aba.getDataRange();
@@ -148,6 +179,10 @@ function getAtas() {
 
     // Arquivado na Rede (V3.2): a célula guarda a data em que o admin marcou.
     var arqRede = linha[18];
+    // Pagamento no Navi (V4): mesma ideia — a célula guarda a data da baixa.
+    var navi = linha[19];
+    // Tipo (V4): registro sem tipo gravado é ata (todo o histórico anterior é ata).
+    var tipo = String(linha[20] || '').trim() === TIPO_DOCUMENTO ? TIPO_DOCUMENTO : TIPO_ATA;
 
     atas.push({
       id:                id,
@@ -174,7 +209,10 @@ function getAtas() {
       bola:              bola,
       financeiroVermelho: !!comVermelho[id], // true = há pedido de reembolso sem baixa
       arquivadoRede:     !!(arqRede && String(arqRede).trim()), // V3.2: doc arquivado na rede (só admin marca)
-      arquivadoRedeEm:   arqRede instanceof Date ? Utilities.formatDate(arqRede, tz, 'dd/MM/yyyy') : String(arqRede || '')
+      arquivadoRedeEm:   arqRede instanceof Date ? Utilities.formatDate(arqRede, tz, 'dd/MM/yyyy') : String(arqRede || ''),
+      pagamentoNavi:     !!(navi && String(navi).trim()),          // V4: baixa do pagamento no Navi
+      pagamentoNaviEm:   navi instanceof Date ? Utilities.formatDate(navi, tz, 'dd/MM/yyyy') : String(navi || ''),
+      tipo:              tipo                                       // V4: 'Ata' | 'Documento'
     });
   }
   return atas;
@@ -210,6 +248,40 @@ function ensureMigracaoV3_() {
     props.setProperty('MIGRADO_V3', 'ok');
   } catch (e) { Logger.log('Migração V3 falhou (tenta de novo no próximo load): ' + e); }
 }
+
+/**
+ * V4: semeia o Tipo ('Ata') nos registros antigos e liga a coluna Navi de quem
+ * o dono pediu (juridico@… e erico.frizzera@…, em qualquer domínio — a lista de
+ * verdade é a coluna, isto aqui só é o primeiro empurrão). Roda UMA vez,
+ * guardado por Script Property. Idempotente.
+ */
+function ensureMigracaoV4_() {
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty('MIGRADO_V4') === 'ok') return;
+  try {
+    // 1) Todo registro que já existia é uma ata.
+    var aba = getAbaAtas_();
+    var dados = aba.getDataRange().getValues();
+    for (var i = 1; i < dados.length; i++) {
+      if (!dados[i][0]) continue;
+      if (!String(dados[i][20] || '').trim()) aba.getRange(i + 1, 21).setValue(TIPO_ATA);
+    }
+
+    // 2) Liga o Navi para o jurídico e o Erico (pelo começo do e-mail).
+    var abaU = getAbaUsuarios_();
+    var users = abaU.getDataRange().getValues();
+    for (var j = 1; j < users.length; j++) {
+      var email = String(users[j][0] || '').trim().toLowerCase();
+      if (!email) continue;
+      if (String(users[j][3] || '').trim()) continue;         // já respondido — não mexe
+      var conta = email.split('@')[0];
+      if (conta === 'juridico' || conta === 'erico.frizzera') abaU.getRange(j + 1, 4).setValue('SIM');
+    }
+
+    props.setProperty('MIGRADO_V4', 'ok');
+  } catch (e) { Logger.log('Migração V4 falhou (tenta de novo no próximo load): ' + e); }
+}
+
 
 /** Conjunto de atas com ao menos um pedido de reembolso ainda SEM baixa. */
 function atasComReembolsoPendente_() {
@@ -279,7 +351,7 @@ function saveAta(ata) {
   // ID final: mantém o existente, ou reserva um novo (segurança se vier vazio).
   var idFinal = ata.id || reservarProximoId();
 
-  var statusAntigo = '', dataEnvioAtual = null, dataProtocoloAtual = null, dataConclusaoAtual = null, statusFinanceiroAtual = '', bolaAtual = '';
+  var statusAntigo = '', dataEnvioAtual = null, dataProtocoloAtual = null, dataConclusaoAtual = null, statusFinanceiroAtual = '', bolaAtual = '', tipoAtual = '';
   if (linhaExistente !== -1) {
     statusAntigo          = String(dados[linhaExistente - 1][4] || '');
     dataEnvioAtual        = dados[linhaExistente - 1][3];
@@ -287,7 +359,13 @@ function saveAta(ata) {
     dataConclusaoAtual    = dados[linhaExistente - 1][14];
     statusFinanceiroAtual = String(dados[linhaExistente - 1][16] || '');
     bolaAtual             = String(dados[linhaExistente - 1][17] || '');
+    tipoAtual             = String(dados[linhaExistente - 1][20] || '');
   }
+  // Tipo (V4): registro existente NUNCA troca de trilha — o tipo gravado manda.
+  // Só o cadastro novo escolhe, e sem escolha nasce ata.
+  var tipoFinal = tipoAtual
+    ? (tipoAtual === TIPO_DOCUMENTO ? TIPO_DOCUMENTO : TIPO_ATA)
+    : (ata.tipo === TIPO_DOCUMENTO ? TIPO_DOCUMENTO : TIPO_ATA);
   // Bola: ata nova nasce com o despachante; ata existente preserva a que tem.
   var bolaFinal = (bolaAtual === 'Cobra' || bolaAtual === 'Despachante') ? bolaAtual : 'Despachante';
 
@@ -329,6 +407,11 @@ function saveAta(ata) {
     linhaAlvo = aba.getLastRow();
   }
 
+  // Tipo fica FORA do bloco acima de propósito: as colunas 19 (Arquivado na
+  // Rede) e 20 (Pagamento no Navi) têm dono próprio e não podem ser pisadas
+  // por um save comum, então o setValues para na 18 e o Tipo vai à parte.
+  aba.getRange(linhaAlvo, 21).setValue(tipoFinal);
+
   // Links clicáveis dos arquivos.
   setLinkCell_(aba, linhaAlvo, 6,  ata.arquivoAssinada,   ata.urlAssinada);
   setLinkCell_(aba, linhaAlvo, 8,  ata.arquivoRegistrada, ata.urlRegistrada);
@@ -340,7 +423,7 @@ function saveAta(ata) {
   if (statusAntigo !== ata.status) {
     try {
       var copia = Object.assign({}, ata);
-      copia.id = idFinal; copia.folderUrl = folderUrl;
+      copia.id = idFinal; copia.folderUrl = folderUrl; copia.tipo = tipoFinal;
       sendEmailsOnStatusChange_(copia, statusAntigo, ata.status);
     } catch (e) { Logger.log('E-mail falhou: ' + e); }
   }
@@ -549,9 +632,11 @@ function sendEmailsOnStatusChange_(ata, statusAntigo, statusNovo) {
   if (!emails || emails.length === 0) return;
 
   var novo = !statusAntigo;
+  var ehDoc = (ata.tipo === TIPO_DOCUMENTO);
+  var rotulo = ehDoc ? 'Documento' : 'Ata';
   var assunto = novo
-    ? 'Nova Ata Societária: ' + ata.id + ' — ' + ata.empresa
-    : 'Status Atualizado: Ata ' + ata.id + ' — ' + ata.empresa + ' (' + statusNovo + ')';
+    ? (ehDoc ? 'Novo pedido de documento: ' : 'Nova ata societária: ') + ata.id + ' — ' + ata.empresa
+    : 'Status atualizado: ' + rotulo + ' ' + ata.id + ' — ' + ata.empresa + ' (' + statusNovo + ')';
 
   var textoStatus = novo
     ? 'Cadastrada com status inicial: <strong>' + statusNovo + '</strong>'
@@ -567,13 +652,15 @@ function sendEmailsOnStatusChange_(ata, statusAntigo, statusNovo) {
       "</div>" +
       "<hr style='border:0;border-top:1px solid #cbd5e1;margin-bottom:24px;'/>" +
       "<p style='font-size:15px;color:#334155;'>" +
-        (novo ? "Uma nova ata societária entrou no pipeline de processamento."
-              : "O status de uma ata societária foi alterado.") + "</p>" +
+        (novo ? (ehDoc ? "Um novo pedido de documento foi registrado."
+                       : "Uma nova ata societária entrou no pipeline de processamento.")
+              : "O status de " + (ehDoc ? "um pedido de documento" : "uma ata societária") + " foi alterado.") + "</p>" +
       "<div style='background:#f8fafc;border-radius:8px;padding:20px;margin:24px 0;border-left:4px solid #2563eb;'>" +
         "<table style='width:100%;font-size:14px;'>" +
-          "<tr><td style='padding:6px 0;font-weight:600;width:140px;color:#475569;'>ID da Ata:</td><td style='font-weight:600;'>" + ata.id + "</td></tr>" +
+          "<tr><td style='padding:6px 0;font-weight:600;width:140px;color:#475569;'>" + (ehDoc ? 'ID do Pedido:' : 'ID da Ata:') + "</td><td style='font-weight:600;'>" + ata.id + "</td></tr>" +
           "<tr><td style='padding:6px 0;font-weight:600;color:#475569;'>Empresa:</td><td>" + ata.empresa + "</td></tr>" +
           "<tr><td style='padding:6px 0;font-weight:600;color:#475569;'>Descrição:</td><td>" + (ata.descricao || '') + "</td></tr>" +
+          "<tr><td style='padding:6px 0;font-weight:600;color:#475569;'>Tipo:</td><td>" + (ehDoc ? 'Outros documentos' : 'Ata societária') + "</td></tr>" +
           "<tr><td style='padding:6px 0;font-weight:600;color:#475569;'>Status:</td><td>" + textoStatus + "</td></tr>" +
         "</table>" +
       "</div>" +
@@ -588,7 +675,7 @@ function sendEmailsOnStatusChange_(ata, statusAntigo, statusNovo) {
   MailApp.sendEmail({
     to: emails.join(','),
     subject: assunto,
-    body: 'Ata ' + ata.id + ' (' + ata.empresa + ') — status: ' + statusNovo,
+    body: rotulo + ' ' + ata.id + ' (' + ata.empresa + ') — status: ' + statusNovo,
     htmlBody: html,
     name: 'Cobra Brasil',
     noReply: true
@@ -640,7 +727,7 @@ function loginWithPassword(email, senha) {
   var token = Utilities.getUuid().replace(/-/g, '');
   var expira = new Date().getTime() + 7 * 24 * 60 * 60 * 1000;
   PropertiesService.getScriptProperties().setProperty('TOKEN_' + token, alvo + '|' + expira + '|session');
-  return { sucesso: true, token: token, permissao: permissao };
+  return { sucesso: true, token: token, permissao: permissao, navi: temNavi_(alvo) };
 }
 
 /** Valida um token de sessão guardado no navegador. */
@@ -656,7 +743,7 @@ function validateSessionToken(token) {
   if (new Date().getTime() > expira) { props.deleteProperty('TOKEN_' + token); return { sucesso: false, erro: 'Sessão expirada.' }; }
   if (tipo === 'url') return { sucesso: false, aguardandoAtivacao: true };
   if (!isEmailAuthorized_(email)) { props.deleteProperty('TOKEN_' + token); return { sucesso: false, erro: 'Usuário não autorizado.' }; }
-  return { sucesso: true, email: email, permissao: getPermissao_(email) };
+  return { sucesso: true, email: email, permissao: getPermissao_(email), navi: temNavi_(email) };
 }
 
 /** Ativa uma sessão vinda por link na URL (magic link — reservado p/ futuro). */
@@ -771,7 +858,25 @@ function setArquivadoRede(ataId, valor) {
   return 'Não encontrado';
 }
 
-/** Muda só o Status Financeiro de uma ata (Custos lançados / Pendente pagamento Cobra / Pago). */
+/**
+ * V4 — marca/desmarca "Pagamento no Navi" (coluna 20). Guarda a data quando
+ * marca, limpa quando desmarca. Só quem tem Navi=SIM na aba Usuarios enxerga o
+ * check (a tela esconde); junto com "Arquivado na Rede" é o que fecha o
+ * registro como Finalizado.
+ */
+function setPagamentoNavi(ataId, valor) {
+  var aba = getAbaAtas_();
+  var dados = aba.getDataRange().getValues();
+  for (var i = 1; i < dados.length; i++) {
+    if (String(dados[i][0]) === String(ataId)) {
+      aba.getRange(i + 1, 20).setValue(valor ? new Date() : '');
+      return 'Sucesso';
+    }
+  }
+  return 'Não encontrado';
+}
+
+/** Muda só o Status Financeiro de uma ata (legado V2; sem chamador na V4). */
 function setStatusFinanceiro(ataId, novo) {
   var aba = getAbaAtas_();
   var dados = aba.getDataRange().getValues();
@@ -854,6 +959,7 @@ function postDevolucao(dados) {
 
   var empresa   = String(linhas[linha - 1][1] || '');
   var descricao = String(linhas[linha - 1][2] || '');
+  var tipo      = String(linhas[linha - 1][20] || '') === TIPO_DOCUMENTO ? TIPO_DOCUMENTO : TIPO_ATA;
   var arquivos  = Array.isArray(dados.arquivos) ? dados.arquivos.filter(function (a) { return a && a.nome; }) : [];
 
   // Grava a mensagem (se houver texto ou anexo). Anexos como JSON na coluna 6.
@@ -871,7 +977,7 @@ function postDevolucao(dados) {
   try {
     var folderRico = abaAtas.getRange(linha, 12).getRichTextValue();
     sendDevolucaoEmail_({
-      id: dados.ataId, empresa: empresa, descricao: descricao,
+      id: dados.ataId, empresa: empresa, descricao: descricao, tipo: tipo,
       folderUrl: folderRico ? (folderRico.getLinkUrl() || '') : '',
       papel: dados.papel || '', mensagem: dados.mensagem || '', novaBola: novaBola
     });
@@ -880,19 +986,25 @@ function postDevolucao(dados) {
   return { sucesso: true, bola: novaBola };
 }
 
-/** E-mail curto avisando de nova devolução no chat. */
+/**
+ * E-mail curto avisando de nova manifestação no chat.
+ * A "bola" é vocabulário interno da tela — no e-mail, que sai para fora do time,
+ * a mesma ideia é dita como RESPONSÁVEL ATUAL.
+ */
 function sendDevolucaoEmail_(p) {
   var emails = getNotificationEmails();
   if (!emails || emails.length === 0) return;
-  var titulo = 'Bola com ' + (p.novaBola === 'Cobra' ? 'a Cobra' : 'o despachante') + ' — Ata ' + p.id;
+  var responsavel = (p.novaBola === 'Cobra') ? 'Cobra Brasil' : 'Despachante';
+  var rotulo = (p.tipo === TIPO_DOCUMENTO) ? 'Documento' : 'Ata';
+  var titulo = rotulo + ' ' + p.id + ' — aguardando retorno: ' + responsavel;
   var sistemaUrl = getSystemUrl_();
   var html =
     "<div style='font-family:Arial,sans-serif;max-width:600px;border:1px solid #cbd5e1;border-radius:12px;padding:24px;color:#0f172a;'>" +
-      "<h2 style='color:#1e3a8a;margin:0 0 4px;'>Nova devolução</h2>" +
-      "<p style='color:#475569;margin:0 0 16px;font-size:13px;'>Ata " + p.id + " — " + p.empresa + " · agora a bola está com <strong>" + (p.novaBola === 'Cobra' ? 'a Cobra' : 'o despachante') + "</strong></p>" +
+      "<h2 style='color:#1e3a8a;margin:0 0 4px;'>Nova manifestação registrada</h2>" +
+      "<p style='color:#475569;margin:0 0 16px;font-size:13px;'>" + rotulo + " " + p.id + " — " + p.empresa + " · responsável atual: <strong>" + responsavel + "</strong></p>" +
       (p.mensagem ? "<div style='background:#f8fafc;border-left:4px solid #2563eb;border-radius:8px;padding:14px;margin-bottom:16px;'><strong>" + p.papel + ":</strong> " + p.mensagem + "</div>" : "") +
       "<div style='text-align:center;'>" +
-        (p.folderUrl ? "<a href='" + p.folderUrl + "' style='display:inline-block;background:#10b981;color:#fff;padding:10px 18px;text-decoration:none;border-radius:8px;font-weight:600;font-size:13px;margin-right:8px;'>📂 Pasta da ata</a>" : "") +
+        (p.folderUrl ? "<a href='" + p.folderUrl + "' style='display:inline-block;background:#10b981;color:#fff;padding:10px 18px;text-decoration:none;border-radius:8px;font-weight:600;font-size:13px;margin-right:8px;'>📂 Pasta no Drive</a>" : "") +
         (sistemaUrl ? "<a href='" + sistemaUrl + "' style='display:inline-block;background:#2563eb;color:#fff;padding:10px 18px;text-decoration:none;border-radius:8px;font-weight:600;font-size:13px;'>🖥️ Abrir sistema</a>" : "") +
       "</div>" +
     "</div>";
@@ -901,30 +1013,38 @@ function sendDevolucaoEmail_(p) {
 
 
 /* ==========================================================================
- * 15. REEMBOLSOS (V2.1) — vários pedidos por ata, cada um justificado + anexo
+ * 15. CENTRAL DE PEDIDOS DE PAGAMENTO (V4) — era "Reembolsos" (V2.1)
  * ==========================================================================
- * Cada pedido é uma linha na aba "Reembolsos" (ID da Ata, Data/Hora, Autor,
- * Valor, Justificativa, Arquivo). A coluna "Reembolso Taxas" da aba Atas passa
- * a guardar a SOMA dos pedidos, para os totais da tela continuarem certos.
+ * A V4 acabou com a divisão entre "reembolso" e "NF": existe UMA central de
+ * pedidos de pagamento. Cada pedido é uma linha na aba "Reembolsos" (o nome da
+ * aba fica, para não perder o histórico) com: Objeto (texto livre), Tipo
+ * (Reembolso | Serviço), Valor, anexos de lastro e a baixa própria.
+ * Honorários, que eram um campo solto na ata, entram aqui como Tipo=Serviço.
+ * A coluna "Reembolso Taxas" da aba Atas guarda a SOMA de todos os pedidos.
  */
 
-/** Aba "Reembolsos": uma linha por pedido. Coluna 7 "Baixado Em" = quando foi pago. */
+var TIPO_PAG_REEMBOLSO = 'Reembolso';
+var TIPO_PAG_SERVICO   = 'Serviço';
+
+/** Aba "Reembolsos": uma linha por pedido. Col 7 = "Baixado Em"; col 8 = "Tipo". */
 function getAbaReembolsos_(planilha) {
   planilha = planilha || getPlanilha_();
   var aba = planilha.getSheetByName('Reembolsos');
+  var CAB = ['ID da Ata', 'Data/Hora', 'Autor', 'Valor', 'Objeto', 'Arquivo', 'Baixado Em', 'Tipo'];
   if (!aba) {
     aba = planilha.insertSheet('Reembolsos');
-    aba.getRange(1, 1, 1, 7).setValues([['ID da Ata', 'Data/Hora', 'Autor', 'Valor', 'Justificativa', 'Arquivo', 'Baixado Em']])
+    aba.getRange(1, 1, 1, CAB.length).setValues([CAB])
       .setBackground('#1A365D').setFontColor('#FFFFFF').setFontWeight('bold');
     aba.setFrozenRows(1);
-  } else if (aba.getMaxColumns() < 7 || !aba.getRange(1, 7).getValue()) {
-    if (aba.getMaxColumns() < 7) aba.insertColumnsAfter(aba.getMaxColumns(), 7 - aba.getMaxColumns());
-    aba.getRange(1, 7).setValue('Baixado Em').setBackground('#1A365D').setFontColor('#FFFFFF').setFontWeight('bold');
+  } else if (aba.getMaxColumns() < CAB.length || String(aba.getRange(1, 8).getValue()).trim() !== 'Tipo') {
+    if (aba.getMaxColumns() < CAB.length) aba.insertColumnsAfter(aba.getMaxColumns(), CAB.length - aba.getMaxColumns());
+    aba.getRange(1, 1, 1, CAB.length).setValues([CAB])
+      .setBackground('#1A365D').setFontColor('#FFFFFF').setFontWeight('bold');
   }
   return aba;
 }
 
-/** Devolve os pedidos de reembolso de uma ata (com anexos e estado de baixa). */
+/** Devolve os pedidos de pagamento de uma ata (com anexos e estado de baixa). */
 function getReembolsos(ataId) {
   var aba = getAbaReembolsos_();
   var intervalo = aba.getDataRange();
@@ -935,12 +1055,15 @@ function getReembolsos(ataId) {
   for (var i = 1; i < dados.length; i++) {
     if (String(dados[i][0]) !== String(ataId)) continue;
     var baixadoEm = dados[i][6];
+    // Pedido antigo (pré-V4) não tem tipo gravado: tudo que existia era reembolso.
+    var tipoPag = String(dados[i][7] || '').trim() === TIPO_PAG_SERVICO ? TIPO_PAG_SERVICO : TIPO_PAG_REEMBOLSO;
     itens.push({
       linha:        i + 1,
       dataHora:     dados[i][1] instanceof Date ? Utilities.formatDate(dados[i][1], tz, 'dd/MM/yyyy HH:mm') : String(dados[i][1] || ''),
       autor:        String(dados[i][2] || ''),
       valor:        Number(dados[i][3]) || 0,
-      justificativa:String(dados[i][4] || ''),
+      objeto:       String(dados[i][4] || ''),
+      tipo:         tipoPag,
       arquivos:     lerArquivosCelula_(dados[i][5], ricos[i][5]),
       baixado:      !!(baixadoEm && String(baixadoEm).trim()),
       baixadoEm:    baixadoEm instanceof Date ? Utilities.formatDate(baixadoEm, tz, 'dd/MM/yyyy') : String(baixadoEm || '')
@@ -949,7 +1072,7 @@ function getReembolsos(ataId) {
   return itens;
 }
 
-/** Soma todos os pedidos de reembolso de uma ata e grava na coluna 9 (Reembolso Taxas). */
+/** Soma TODOS os pedidos de pagamento de uma ata e grava na coluna 9 (Reembolso Taxas). */
 function recomputarTotalReembolso_(ataId) {
   var itens = getReembolsos(ataId);
   var total = 0;
@@ -967,8 +1090,8 @@ function recomputarTotalReembolso_(ataId) {
 }
 
 /**
- * Registra um novo pedido de reembolso.
- * dados = { ataId, autor, valor, justificativa, arquivos:[{nome,url}] }
+ * Registra um novo pedido de pagamento.
+ * dados = { ataId, autor, valor, objeto, tipo, arquivos:[{nome,url}] }
  * Os anexos já subiram direto pro Drive; aqui só guardamos os links (JSON).
  * O pedido nasce SEM baixa (coluna 7 vazia) — é isso que acende o cifrão.
  */
@@ -983,8 +1106,11 @@ function postReembolso(dados) {
 
   var arquivos = Array.isArray(dados.arquivos) ? dados.arquivos.filter(function (a) { return a && a.nome; }) : [];
 
+  var tipoPag = (dados.tipo === TIPO_PAG_SERVICO) ? TIPO_PAG_SERVICO : TIPO_PAG_REEMBOLSO;
+  var objeto  = dados.objeto || dados.justificativa || '';   // 'justificativa' era o nome na V3
+
   var abaR = getAbaReembolsos_();
-  abaR.appendRow([dados.ataId, new Date(), dados.autor || '', Number(dados.valor) || 0, dados.justificativa || '', arquivos.length ? JSON.stringify(arquivos) : '', '']);
+  abaR.appendRow([dados.ataId, new Date(), dados.autor || '', Number(dados.valor) || 0, objeto, arquivos.length ? JSON.stringify(arquivos) : '', '', tipoPag]);
 
   var total = recomputarTotalReembolso_(dados.ataId);
   return { sucesso: true, total: total };
@@ -1014,7 +1140,7 @@ function reabrirReembolso(ataId, linha) {
   return 'Não encontrado';
 }
 
-/** Exclui um pedido de reembolso (pela linha) e recalcula o total. */
+/** Exclui um pedido de pagamento (pela linha) e recalcula o total. */
 function deleteReembolso(ataId, linha) {
   var aba = getAbaReembolsos_();
   var dados = aba.getDataRange().getValues();
@@ -1028,7 +1154,9 @@ function deleteReembolso(ataId, linha) {
   return 'Não encontrado';
 }
 
-/** Grava só os Honorários Despachante (coluna 10) — trilha à parte dos reembolsos. */
+/** Grava os Honorários Despachante (coluna 10). LEGADO V3: na V4 os honorários
+ *  são um pedido de pagamento do tipo Serviço; a coluna fica só com o histórico
+ *  e esta função não tem mais chamador na tela. */
 function setHonorarios(ataId, valor) {
   var aba = getAbaAtas_();
   var dados = aba.getDataRange().getValues();
