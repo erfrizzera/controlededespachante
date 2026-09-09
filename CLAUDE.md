@@ -211,24 +211,32 @@ Controle de Despachante/
 
 ## Status
 
-**V4.0.0 escrita e testada localmente em 2026-09-09 — AINDA NÃO PUBLICADA.**
-No ar continua a **V3.2.0** (implantação 21). Endereço:
+**V4.1.0 no ar (2026-09-09, implantação 22).** Endereço:
 https://erfrizzera.github.io/controlededespachante/
 
-A V4 é a maior mudança desde a V3: mexe em cadastro, financeiro, coluna Status, e-mail e
-esquema de dados de uma vez. Foi validada num navegador de verdade (servidor local + página
-carregada, console limpo, os cinco itens conferidos um a um) — mas a lição do item 1 da V3.1
-manda desconfiar de teste local. **Se der tela vazia / logout travado depois de publicar:
-esperar ~1 min, `Ctrl+Shift+R`, relogar. Se voltar na hora ao reverter para a versão 21, é a
-versão nova — aí isole item a item.**
+A V4 foi a maior mudança desde a V3 — cadastro, financeiro, coluna Status, e-mail e esquema de
+dados de uma vez. Subiu em dois tempos no mesmo dia: a **V4.0** foi testada no deploy `@HEAD`
+antes de ir para a produção (foi lá que apareceu o bug de ordem do Navi, ver abaixo), e a
+**V4.1** trouxe as correções de rumo pedidas depois de ver a coisa funcionando.
+
+> **O deploy `@HEAD` é a rede de segurança que faltou na V3.1.** `clasp push` sozinho atualiza
+> só ele; a produção continua onde estava até o `update-deployment`. Testar lá primeiro custa
+> nada e teria poupado a saga do item 1. Use sempre.
+
+> **Bug de ordem, achado no @HEAD (V4.0 → V4.1):** o check "Pagamento no Navi" não aparecia,
+> embora a coluna `Navi` estivesse com `SIM` na planilha. O login (`temNavi_`) roda **antes**
+> do primeiro `getAtas`, e era o `getAtas` que chamava `ensureMigracaoV4_` — então a primeira
+> sessão lia a coluna ainda vazia. Planilha certa, tela errada. `temNavi_` passou a chamar a
+> migração antes de ler. **Lição:** migração que semeia dado usado pelo login tem que rodar no
+> login também, não só na leitura da lista.
 
 Estado real da implantação (conferido com `clasp list-deployments` em 2026-08-21):
 
 | Onde | O quê |
 |---|---|
 | Implantação de produção | `AKfycbz8FqcbL2DqwkqUH0vmoJ503Vui7G7wwD718-QZrGpVeSUXzNgSPN2g5JG9FrgWeMnF` |
-| Versão servida hoje | **21** (V3.2 completa) — no ar desde 21/08 |
-| Base estável anterior | versão **20** = V3.2 sem a ordenação; **19** = V3.1; **8** = V3.0 puro |
+| Versão servida hoje | **22** (V4.1 completa) — no ar desde 09/09 |
+| Base estável anterior | **21** = V3.2 (o porto seguro pré-V4); **19** = V3.1; **8** = V3.0 puro |
 | Reverter para | versão **21** (`update-deployment -V 21 <deploymentId>`) |
 
 **V3.2 = V3.1 + ordenação pelo cabeçalho + filtro "Exibir" + "Arquivado na Rede".** Saiu em dois
@@ -240,8 +248,13 @@ primeira maiúscula) + cifrão por último + coluna "Tempo de Processo" removida
 remoção da coluna foram publicados **um de cada vez** (versões 16→19) porque o item 1 original
 (tempo na descrição) quebrava o app no ar; ver a lição em "Domínio (V3)".
 
-**Pendente de implantação: a V4 inteira.** O código no git e o `version.json` já estão em
-4.0.0; a implantação ainda serve a versão 21.
+**Nada pendente de implantação.** Código, `version.json` (4.1.0) e implantação (22) estão
+alinhados.
+
+**O que olhar nos primeiros dias:** com o Concluído derivado, ata antiga gravada como
+`Concluído` **sem** os dois checks voltou a aparecer na lista, como `Registrado` com os checks
+pendentes. É o comportamento correto, mas se for volume grande dá para resolver marcando as
+colunas 19 e 20 da aba `Atas` em lote, direto na planilha.
 
 > **Armadilha reconfirmada em 29/07 (deploy):** logo após cada `update-deployment` o app pode abrir
 > **vazio / com logout travado** por causa do cold-start + deslogamento — esperar ~1 min, dar
