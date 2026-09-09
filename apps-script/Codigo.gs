@@ -132,9 +132,13 @@ function getAbaUsuarios_(planilha) {
   return aba;
 }
 
-/** V4: este e-mail pode ver/marcar o "Pagamento no Navi"? (coluna Navi = SIM) */
+/** V4: este e-mail pode ver/marcar o "Pagamento no Navi"? (coluna Navi = SIM)
+ *  Chama a migração antes de ler: o login acontece ANTES do primeiro getAtas,
+ *  então sem isto a primeira sessão depois do deploy leria a coluna ainda vazia
+ *  e devolveria false — o check só apareceria no segundo acesso. */
 function temNavi_(email) {
   if (!email) return false;
+  ensureMigracaoV4_();
   var alvo = String(email).trim().toLowerCase();
   try {
     var dados = getAbaUsuarios_().getDataRange().getValues();
