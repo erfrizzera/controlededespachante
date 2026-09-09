@@ -1,5 +1,5 @@
 {
-  "version": "4.0.0",
+  "version": "4.1.0",
   "atualizadoEm": "2026-09-09",
-  "nota": "V4: (1) ao entrar, o filtro 'Exibir' ja nasce em 'Ocultar finalizadas'; (2) check 'Pagamento no Navi' na coluna Status, visivel so para quem tem Navi=SIM na aba Usuarios (coluna nova) — Finalizado agora exige Concluido + Arquivado na Rede + Pagamento no Navi, e o meio-termo aparece como selo 'Encerrando'; (3) e-mails trocaram 'bola com' por 'responsavel atual'; (4) financeiro virou uma central unica de pedidos de pagamento (objeto livre + tipo Reembolso/Servico + valor + lastro anexado + baixa por pedido) — acabou a divisao reembolso/NF e o campo Honorarios saiu da tela (vira pedido tipo Servico); (5) segunda trilha de cadastro 'Outros Documentos' (Solicitado -> Concluido, sem protocolo), escolhida no cadastro e gravada na coluna Tipo. Sobre a base V3.2."
+  "nota": "V4.1 (ajustes sobre a V4): 'Concluido' deixou de ser um passo que alguem clica e virou DERIVADO dos dois checks (Arquivado na Rede + Pagamento no Navi) -- sumiram o botao Concluir Junta e os conceitos Finalizado/Encerrando; a trilha da ata le Enviado -> Protocolizado -> Registrado -> Concluido e a do documento Solicitado -> Devolvido -> Concluido (rotulos de tela; a planilha segue com 'Em Protocolo' e 'Registrada'); 'a bola' virou 'Aguardando' em toda a tela; a central de pagamentos perdeu baixa/aguardando e virou consolidacao pura, com o cifrao vermelho passando a seguir o check do Navi; botao do topo virou 'Cadastrar Pedido'. Sobre a base V4.0."
 }

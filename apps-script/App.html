@@ -528,13 +528,6 @@
     .navi-only { display: none !important; }
     body.navi-sim .navi-only { display: inline-flex !important; }
 
-    /* V4: registro Concluído na Junta mas sem os dois checks — nem toggle nem
-       Finalizado; um selo dizendo o que falta. */
-    .bola-encerrando { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700;
-      color: var(--color-warning); background: rgba(249,115,22,.10); border: 1px solid rgba(249,115,22,.25);
-      border-radius: 20px; padding: 2px 9px; }
-    .bola-encerrando .material-icons-round { font-size: 12px; }
-
     /* V4: etiqueta do tipo de registro, ao lado da descrição. */
     .tipo-tag { display: inline-flex; align-items: center; gap: 3px; font-size: 8px; font-weight: 700;
       text-transform: uppercase; letter-spacing: .4px; padding: 2px 6px; border-radius: 4px;
@@ -550,22 +543,21 @@
     .tipo-btn small { font-size: 9px; font-weight: 500; color: var(--text-muted); text-transform: none; letter-spacing: normal; }
     .tipo-btn.active { border-color: var(--color-primary); background: rgba(37,99,235,.08); color: var(--color-primary); }
 
-    /* ===== "Com a bola": toggle liga-desliga de quem é a vez =====
-       Compacto, dentro da coluna Status. O botão desliza pro lado do responsável:
-       esquerda = Cobra (azul), direita = despachante (cinza). Na pendência não
-       aparece — o selo "Pendência" já diz que parou. */
-    .bola-wrap { display: inline-flex; align-items: center; gap: 7px; }
-    .bola-switch { width: 38px; height: 20px; border-radius: 20px; position: relative; display: inline-block; border: 1px solid; flex-shrink: 0; }
-    .bola-knob { position: absolute; top: 2px; width: 14px; height: 14px; border-radius: 50%; transition: left .2s ease, right .2s ease; }
-    .bola-nome { font-size: 10px; font-weight: 700; }
-    .bola-cobra .bola-switch { background: rgba(37,99,235,.15); border-color: rgba(37,99,235,.3); }
-    .bola-cobra .bola-knob { left: 2px; background: var(--color-primary); }
-    .bola-cobra .bola-nome { color: var(--color-primary); }
-    .bola-despachante .bola-switch { background: rgba(148,163,184,.15); border-color: rgba(148,163,184,.35); }
-    .bola-despachante .bola-knob { right: 2px; background: var(--text-secondary); }
-    .bola-despachante .bola-nome { color: var(--text-secondary); }
-    .bola-fim { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: var(--text-muted); }
-    .bola-fim .material-icons-round { font-size: 12px; color: var(--status-registrada); }
+    /* ===== "Aguardando": de quem o registro está esperando =====
+       Compacto, dentro da coluna Status. O botão desliza pro lado de quem tem a
+       vez: esquerda = Cobra (azul), direita = despachante (cinza). Concluído não
+       mostra nada — não espera ninguém. */
+    .aguard-wrap { display: inline-flex; align-items: center; gap: 6px; }
+    .aguard-switch { width: 38px; height: 20px; border-radius: 20px; position: relative; display: inline-block; border: 1px solid; flex-shrink: 0; }
+    .aguard-knob { position: absolute; top: 2px; width: 14px; height: 14px; border-radius: 50%; transition: left .2s ease, right .2s ease; }
+    .aguard-rotulo { color: var(--text-muted); font-size: 9px; text-transform: uppercase; letter-spacing: .3px; }
+    .aguard-nome { font-size: 10px; font-weight: 700; }
+    .aguard-cobra .aguard-switch { background: rgba(37,99,235,.15); border-color: rgba(37,99,235,.3); }
+    .aguard-cobra .aguard-knob { left: 2px; background: var(--color-primary); }
+    .aguard-cobra .aguard-nome { color: var(--color-primary); }
+    .aguard-despachante .aguard-switch { background: rgba(148,163,184,.15); border-color: rgba(148,163,184,.35); }
+    .aguard-despachante .aguard-knob { right: 2px; background: var(--text-secondary); }
+    .aguard-despachante .aguard-nome { color: var(--text-secondary); }
 
     /* ===== V3: cifrão financeiro, anexos múltiplos e baixa ===== */
     .btn-icon.fin-vermelho { position: relative; color: var(--color-danger); }
@@ -574,15 +566,10 @@
     .anexo-chip { font-size: 11px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; padding: 4px 8px; display: inline-flex; align-items: center; gap: 5px; color: var(--text-secondary); }
     .anexo-chip button { background: none; border: none; color: var(--text-muted); cursor: pointer; display: inline-flex; padding: 0; }
     .anexo-chip button:hover { color: var(--color-danger); }
-    .fin-alerta { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--color-danger); background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.25); border-radius: 8px; padding: 8px 12px; margin-bottom: 14px; }
-    .fin-selo { font-size: 9px; font-weight: 700; text-transform: uppercase; padding: 3px 8px; border-radius: 20px; display: inline-flex; align-items: center; gap: 3px; }
-    .fin-selo-aguardando { color: var(--color-danger); background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.25); }
-    .fin-selo-pago { color: var(--status-registrada); background: rgba(16,185,129,.12); border: 1px solid rgba(16,185,129,.25); }
-    .reembolso-pendente { border-left: 3px solid var(--color-danger); }
-    .reembolso-baixado { opacity: .7; }
+    /* (V4.1) fin-alerta, fin-selo e os estados de baixa saíram: a central não
+       controla mais tempo de pagamento — quem faz isso é o check do Navi. */
     /* Uniformizar o painel financeiro em "primeira maiúscula" (sem CAIXA ALTA). */
     #reembolso-modal .form-section-divider,
-    #reembolso-modal .fin-selo,
     #reembolso-modal .reembolso-item-meta { text-transform: none; letter-spacing: normal; }
 
     /* ===== V2: conversa de pendência ===== */
@@ -731,7 +718,7 @@
         <div class="header-actions">
           <button id="btn-new-ata" class="btn btn-primary">
             <span class="material-icons-round">add</span>
-            Cadastrar Envio
+            Cadastrar Pedido
           </button>
         </div>
       </header>
@@ -743,13 +730,13 @@
             <div class="kpi-icon total"><span class="material-icons-round">assignment</span></div>
             <div class="kpi-info"><span class="kpi-label">Total de Registros</span><h3 class="kpi-value" id="kpi-total">0</h3></div>
           </div>
-          <div class="kpi-card" data-status="Em Protocolo">
+          <div class="kpi-card" data-status="Protocolizado">
             <div class="kpi-icon protocolo"><span class="material-icons-round">pending_actions</span></div>
             <div class="kpi-info"><span class="kpi-label">Protocolizado</span><h3 class="kpi-value" id="kpi-protocolo">0</h3></div>
           </div>
           <div class="kpi-card" data-status="">
             <div class="kpi-icon pagamento"><span class="material-icons-round">payments</span></div>
-            <div class="kpi-info"><span class="kpi-label">Pendente Pagto. (Cobra)</span><h3 class="kpi-value" id="kpi-pagamento">0</h3></div>
+            <div class="kpi-info"><span class="kpi-label">Pagamento pendente</span><h3 class="kpi-value" id="kpi-pagamento">0</h3></div>
           </div>
           <div class="kpi-card" data-status="Concluído">
             <div class="kpi-icon concluido"><span class="material-icons-round">task_alt</span></div>
@@ -765,11 +752,12 @@
                 <option value="">Todas as Empresas</option>
               </select>
               <select id="filter-status" class="select-filter">
-                <option value="">Todos os Status</option>
-                <option value="Solicitado">Solicitado (documento)</option>
+                <option value="">Todas as Situações</option>
                 <option value="Enviado">Enviado</option>
-                <option value="Em Protocolo">Protocolizado</option>
-                <option value="Registrada">Registrada</option>
+                <option value="Protocolizado">Protocolizado</option>
+                <option value="Registrado">Registrado</option>
+                <option value="Solicitado">Solicitado (documento)</option>
+                <option value="Devolvido">Devolvido (documento)</option>
                 <option value="Concluído">Concluído</option>
               </select>
               <select id="filter-view" class="select-filter">
@@ -864,7 +852,7 @@
       <form class="modal-form" id="ata-form">
         <input type="hidden" id="form-id">
         
-        <!-- Modo do formulário ('create', 'edit_admin', 'workflow_protocolo', 'workflow_registro', 'workflow_concluir', 'workflow_devolver') -->
+        <!-- Modo do formulário ('create', 'edit_admin', 'workflow_protocolo', 'workflow_registro', 'workflow_devolver') -->
         <input type="hidden" id="form-mode" value="create">
 
         <!-- V4: duas trilhas. Ata segue o fluxo completo da Junta; Outros
@@ -988,9 +976,7 @@
         <button class="btn-close" id="btn-close-reembolso"><span class="material-icons-round">close</span></button>
       </header>
 
-      <div id="reembolso-alerta" class="fin-alerta hidden"><span class="material-icons-round" style="font-size:14px;">error_outline</span> <span id="reembolso-alerta-txt"></span></div>
-
-      <div class="form-section-divider" style="margin-top: 0;">Histórico de pedidos</div>
+      <div class="form-section-divider" style="margin-top: 0;">Pedidos consolidados</div>
       <div class="reembolso-lista" id="reembolso-lista"></div>
       <div class="reembolso-total" id="reembolso-total"></div>
 
@@ -1033,11 +1019,29 @@
     const URL_TOKEN_RAW = "<?= urlToken ?>";
     const URL_TOKEN = (URL_TOKEN_RAW.startsWith("<" + "?") || URL_TOKEN_RAW === "") ? "" : URL_TOKEN_RAW;
 
-    // V4: cada trilha tem o seu pipeline. A ata passa pela Junta inteira; o
-    // pedido de documento vai do pedido à devolução, sem protocolo no meio.
-    const pipelineStages = ["Enviado", "Em Protocolo", "Registrada", "Concluído"];
-    const pipelineStagesDoc = ["Solicitado", "Concluído"];
+    // V4.1: as ETAPAS que alguém escreve. 'Concluído' não está aqui de propósito
+    // — ele é derivado dos dois checks da Cobra, não um passo que se clica.
+    const pipelineStages    = ["Enviado", "Em Protocolo", "Registrada"];
+    const pipelineStagesDoc = ["Solicitado", "Devolvido"];
     const estagiosDoTipo = (tipo) => (tipo === 'Documento' ? pipelineStagesDoc : pipelineStages);
+
+    /** A última etapa que o despachante entrega, por trilha. */
+    const etapaFinalDe = (ata) => (ata.tipo === 'Documento' ? 'Devolvido' : 'Registrada');
+
+    /**
+     * V4.1 — CONCLUÍDO É DERIVADO. Ninguém clica em "concluir": o despachante
+     * entrega (Registrado / Devolvido) e a Cobra marca os dois checks. Marcou os
+     * dois, está concluído; desmarcou um, deixou de estar. Uma regra só, e o
+     * dado na planilha nunca pode contradizer a tela porque não é lido cru.
+     */
+    function estaConcluido(ata) {
+      return !!ata.arquivadoRede && !!ata.pagamentoNavi && ata.status === etapaFinalDe(ata);
+    }
+
+    /** O que a coluna "Situação:" mostra. */
+    function situacaoDe(ata) {
+      return estaConcluido(ata) ? 'Concluído' : nomeStatus(ata.status);
+    }
     
     const companiesList = [
       "OUTRA",
@@ -1132,6 +1136,7 @@
       switch (status) {
         case 'Solicitado': return 'enviado';
         case 'Enviado': return 'enviado';
+        case 'Devolvido': return 'registrada';
         case 'Em Protocolo': return 'protocolo';
         case 'Registrada': return 'registrada';
         case 'Aguardando Pagamento': return 'pagamento';
@@ -1141,65 +1146,45 @@
       }
     }
 
-    // Rótulo do status na TELA. O dado guardado continua 'Em Protocolo' (não mexe
-    // no backend nem na migração); só o que o usuário vê muda para 'Protocolizado'.
+    // Rótulo da etapa na TELA. A planilha continua com 'Em Protocolo' e
+    // 'Registrada' — renomear dado histórico é risco sem retorno. Só o que o
+    // usuário lê muda, e é aqui, num lugar só.
+    const ROTULO_ETAPA = { 'Em Protocolo': 'Protocolizado', 'Registrada': 'Registrado' };
     function nomeStatus(status) {
-      return status === 'Em Protocolo' ? 'Protocolizado' : status;
+      return ROTULO_ETAPA[status] || status;
     }
 
     /**
-     * Com quem está a bola? (V3) Vem direto do campo `bola` da ata, que só o chat
-     * move (devolução). O único caso que não é bola de ninguém é a Junta concluída.
-     * O financeiro é separado — não entra aqui (vive no cifrão).
+     * De quem o registro está esperando. Vem do campo `bola` da ata (o nome da
+     * coluna na planilha ficou, pelo histórico), que só o chat move — quem
+     * escreve está devolvendo. Registro concluído não espera ninguém.
+     * O financeiro é separado: não entra aqui, vive no cifrão.
      *
      * Devolve: 'cobra' | 'despachante' | 'fim'.
      */
     function deQuemEhAVez(ata) {
-      if (ata.status === 'Concluído') return 'fim';
+      if (estaConcluido(ata)) return 'fim';
       return (ata.bola === 'Cobra') ? 'cobra' : 'despachante';
     }
 
-    /**
-     * V4 — FINALIZADO de verdade. Concluir na Junta (ou devolver o documento)
-     * deixou de ser o fim da linha: o registro só fecha quando a Cobra também
-     * arquivou na rede E deu a baixa do pagamento no Navi. É este predicado que
-     * manda no selo da coluna Status e no filtro "Ocultar finalizadas".
-     */
-    function estaFinalizado(ata) {
-      return ata.status === 'Concluído' && !!ata.arquivadoRede && !!ata.pagamentoNavi;
-    }
-
-    /** O que ainda falta para o registro fechar (texto da dica do selo). */
-    function faltaParaFinalizar(ata) {
-      const falta = [];
-      if (!ata.arquivadoRede) falta.push('arquivar na rede');
-      if (!ata.pagamentoNavi) falta.push('baixar o pagamento no Navi');
-      return falta;
-    }
-
-    /** Desenha o toggle "com a bola" (liga-desliga) para a coluna Status. */
-    function renderBola(ata) {
+    /** Desenha o "Aguardando" (liga-desliga) para a coluna Status. */
+    function renderResponsavel(ata) {
       const lado = deQuemEhAVez(ata);
 
-      if (lado === 'fim') {
-        if (estaFinalizado(ata)) {
-          return `<span class="bola-fim" title="Processo encerrado e conferido"><span class="material-icons-round">check</span> Finalizado</span>`;
-        }
-        // Concluído na Junta, mas ainda em cima da Cobra: não é bola de ninguém
-        // (o chat é que move a bola), então vai um selo dizendo o que falta.
-        const falta = faltaParaFinalizar(ata).join(' e ');
-        return `<span class="bola-encerrando" title="Falta ${falta} para finalizar"><span class="material-icons-round">hourglass_top</span> Encerrando</span>`;
-      }
+      // Concluído não espera ninguém — a linha "Situação: Concluído" já diz tudo,
+      // e um chip extra aqui só repetiria a mesma informação.
+      if (lado === 'fim') return '';
 
       const mapa = {
-        despachante: { nome: 'Despachante', dica: 'Bola com o despachante' },
-        cobra:       { nome: 'Cobra',       dica: 'Bola com a Cobra' }
+        despachante: { nome: 'Despachante', dica: 'Aguardando o despachante' },
+        cobra:       { nome: 'Cobra',       dica: 'Aguardando a Cobra' }
       };
       const m = mapa[lado];
 
-      return `<span class="bola-wrap bola-${lado}" title="${m.dica}">
-        <span class="bola-switch"><span class="bola-knob"></span></span>
-        <span class="bola-nome">${m.nome}</span>
+      return `<span class="aguard-wrap aguard-${lado}" title="${m.dica}">
+        <span class="aguard-switch"><span class="aguard-knob"></span></span>
+        <span class="aguard-rotulo">Aguardando:</span>
+        <span class="aguard-nome">${m.nome}</span>
       </span>`;
     }
 
@@ -1281,7 +1266,8 @@
       },
       {
         id: "ATA-120563", empresa: "SPE 2", descricao: "Ata de Reunião de Diretoria - Eleição de Novo Diretor Técnico",
-        dataEnvio: "2026-06-20", status: "Aguardando Pagamento", arquivoAssinada: "Eleicao_Diretoria_SPE2_Assinada.pdf",
+        dataEnvio: "2026-06-20", status: "Registrada", arquivadoRede: true, arquivadoRedeEm: "01/09/2026",
+        pagamentoNavi: true, pagamentoNaviEm: "02/09/2026", tipo: "Ata", bola: "Cobra", arquivoAssinada: "Eleicao_Diretoria_SPE2_Assinada.pdf",
         urlAssinada: "", protocolo: "PRT12345678", arquivoRegistrada: "Eleicao_Diretoria_SPE2_Registrada.pdf", urlRegistrada: "",
         reembolso: 120.50, honorarios: 350.00, arquivoNotaFiscal: "NF_1052_Despachante.pdf", urlNotaFiscal: ""
       }
@@ -1567,15 +1553,17 @@
     // ===== Ordenação da tabela (V3.2) =====
     // O Status não ordena por alfabeto e sim pela ordem do processo na Junta —
     // alfabético colocaria "Concluído" antes de "Enviado", que não diz nada.
-    // 'Solicitado' é o começo da trilha de documento — vale o mesmo degrau do 'Enviado'.
-    const ORDEM_STATUS = { 'Solicitado': 1, 'Enviado': 1, 'Em Protocolo': 2, 'Registrada': 3, 'Concluído': 4 };
+    // Ordena pela SITUAÇÃO exibida. 'Solicitado' é o começo da trilha de
+    // documento, então vale o mesmo degrau do 'Enviado'; 'Devolvido' é a entrega
+    // do documento, o mesmo degrau do 'Registrado'.
+    const ORDEM_STATUS = { 'Solicitado': 1, 'Enviado': 1, 'Protocolizado': 2, 'Registrado': 3, 'Devolvido': 3, 'Concluído': 4 };
 
     function valorDeOrdem(ata, coluna) {
       switch (coluna) {
         case 'empresa':   return String(ata.empresa || '').trim();
         case 'id':        return String(ata.id || '').trim();       // Descrição ordena pelo ID
         case 'protocolo': return String(ata.protocolo || '').trim();
-        case 'status':    return ORDEM_STATUS[ata.status] || 99;
+        case 'status':    return ORDEM_STATUS[situacaoDe(ata)] || 99;
         default:          return '';
       }
     }
@@ -1617,11 +1605,11 @@
                               ata.id.toLowerCase().includes(state.searchQuery.toLowerCase()) ||
                               (ata.protocolo && ata.protocolo.toLowerCase().includes(state.searchQuery.toLowerCase()));
         const matchesCompany = state.selectedCompanyFilter === "" || ata.empresa === state.selectedCompanyFilter;
-        const matchesStatus = state.selectedStatusFilter === "" || ata.status === state.selectedStatusFilter;
-        // Filtro "Exibir": oculta o que está finalizado (V4 = Concluído + arquivado
-        // na rede + pago no Navi) ou mostra só quem tem pedido sem baixa.
+        const matchesStatus = state.selectedStatusFilter === "" || situacaoDe(ata) === state.selectedStatusFilter;
+        // Filtro "Exibir": oculta os concluídos (que já exigem os dois checks) ou
+        // mostra só quem tem pagamento pendente.
         let matchesView = true;
-        if (state.selectedViewFilter === 'ativas') matchesView = !estaFinalizado(ata);
+        if (state.selectedViewFilter === 'ativas') matchesView = !estaConcluido(ata);
         else if (state.selectedViewFilter === 'pendpag') matchesView = !!ata.financeiroVermelho;
         return matchesSearch && matchesCompany && matchesStatus && matchesView;
       });
@@ -1638,26 +1626,27 @@
           const tr = document.createElement('tr');
           const ehDoc = ata.tipo === 'Documento';
 
-          const statusBadge = `<span class="badge badge-${getStatusClass(ata.status)}">${nomeStatus(ata.status)}</span>`;
+          const situacao = situacaoDe(ata);
+          const statusBadge = `<span class="badge badge-${getStatusClass(estaConcluido(ata) ? 'Concluído' : ata.status)}">${situacao}</span>`;
 
-          // Próximo passo. A ata percorre a Junta (Protocolar → Registrar →
-          // Concluir); o pedido de documento tem um passo só: devolver.
+          // Próximo passo — só os que alguém de fato executa. Depois da entrega
+          // (Registrado / Devolvido) não há botão: o que falta são os dois
+          // checks, e eles estão logo abaixo, na própria coluna.
           let juntaActionHTML = "";
-          if (ehDoc) {
-            if (ata.status === 'Solicitado') {
-              juntaActionHTML = `<button class="btn-workflow-action action-btn-protocolo" onclick="openModal('${ata.id}', 'workflow_devolver')"><span class="material-icons-round" style="font-size:11px;">assignment_turned_in</span> Devolver documento</button>`;
-            }
-          } else {
-            switch (ata.status) {
-              case 'Enviado':
-                juntaActionHTML = `<button class="btn-workflow-action action-btn-enviado" onclick="openModal('${ata.id}', 'workflow_protocolo')"><span class="material-icons-round" style="font-size:11px;">pending_actions</span> Protocolar</button>`;
-                break;
-              case 'Em Protocolo':
-                juntaActionHTML = `<button class="btn-workflow-action action-btn-protocolo" onclick="openModal('${ata.id}', 'workflow_registro')"><span class="material-icons-round" style="font-size:11px;">verified</span> Registrar</button>`;
-                break;
-              case 'Registrada':
-                juntaActionHTML = `<button class="btn-workflow-action action-btn-registrada" onclick="openModal('${ata.id}', 'workflow_concluir')"><span class="material-icons-round" style="font-size:11px;">task_alt</span> Concluir Junta</button>`;
-                break;
+          if (!estaConcluido(ata)) {
+            if (ehDoc) {
+              if (ata.status === 'Solicitado') {
+                juntaActionHTML = `<button class="btn-workflow-action action-btn-protocolo" onclick="openModal('${ata.id}', 'workflow_devolver')"><span class="material-icons-round" style="font-size:11px;">assignment_turned_in</span> Devolver documento</button>`;
+              }
+            } else {
+              switch (ata.status) {
+                case 'Enviado':
+                  juntaActionHTML = `<button class="btn-workflow-action action-btn-enviado" onclick="openModal('${ata.id}', 'workflow_protocolo')"><span class="material-icons-round" style="font-size:11px;">pending_actions</span> Protocolar</button>`;
+                  break;
+                case 'Em Protocolo':
+                  juntaActionHTML = `<button class="btn-workflow-action action-btn-protocolo" onclick="openModal('${ata.id}', 'workflow_registro')"><span class="material-icons-round" style="font-size:11px;">verified</span> Registrar</button>`;
+                  break;
+              }
             }
           }
           const proximoHTML = juntaActionHTML
@@ -1684,7 +1673,7 @@
           </label>`;
 
           // Financeiro (V3): um cifrão que abre o painel. Vermelho = há pedido sem baixa.
-          const cifraoTitulo = ata.financeiroVermelho ? 'Pedidos de pagamento — há pedido aguardando baixa' : 'Pedidos de pagamento (reembolso e serviço)';
+          const cifraoTitulo = ata.financeiroVermelho ? 'Pedidos de pagamento — ainda sem baixa no Navi' : 'Pedidos de pagamento (reembolso e serviço)';
           const cifraoBtn = `<button class="btn-icon fin ${ata.financeiroVermelho ? 'fin-vermelho' : ''}" onclick="openFinanceiroModal('${ata.id}')" title="${cifraoTitulo}"><span class="material-icons-round">payments</span></button>`;
 
           // Pasta no Drive (era coluna própria; virou botão).
@@ -1710,7 +1699,7 @@
             </td>
             <td>
               <div class="status-cell-stack">
-                ${renderBola(ata)}
+                ${renderResponsavel(ata)}
                 <div class="status-linha"><span class="status-rotulo">Situação:</span> ${statusBadge}</div>
                 ${proximoHTML}
                 ${arqRedeHTML}
@@ -1739,9 +1728,9 @@
 
       // KPIs
       kpiTotal.innerText = state.atas.length;
-      kpiProtocolo.innerText = state.atas.filter(a => a.status === 'Em Protocolo').length;
+      kpiProtocolo.innerText = state.atas.filter(a => situacaoDe(a) === 'Protocolizado').length;
       kpiPagamento.innerText = state.atas.filter(a => a.financeiroVermelho).length;
-      kpiConcluido.innerText = state.atas.filter(a => a.status === 'Concluído').length;
+      kpiConcluido.innerText = state.atas.filter(a => estaConcluido(a)).length;
     }
 
     function formatFileLinkHTML(label, filename, url) {
@@ -1805,7 +1794,7 @@
       if (mode === 'create') {
         // Cadastro novo: é aqui, e só aqui, que se escolhe a trilha.
         formId.value = "";
-        modalTitle.innerText = "Cadastrar Envio";
+        modalTitle.innerText = "Cadastrar Pedido";
         formData.value = new Date().toISOString().split('T')[0];
 
         groupTipoRegistro.classList.remove('hidden');
@@ -1871,24 +1860,15 @@
         fileInputs.registrada.input.required = true;
         formStatusVal.value = "Registrada";
       }
-      else if (mode === 'workflow_concluir') {
-        // Concluir na Junta
-        modalTitle.innerText = "Concluir na Junta";
-        setInputsReadOnly(true);
-        groupAtaAssinada.classList.add('hidden');
-        groupProtocolo.classList.remove('hidden');
-        formProtocolo.setAttribute('readonly', true);
-        formStatusVal.value = "Concluído";
-      }
       else if (mode === 'workflow_devolver') {
         // V4 — trilha do documento: o despachante devolve o que foi pedido.
-        // Sem protocolo, sem etapa no meio: anexou, está concluído.
+        // Sem protocolo e sem etapa no meio. Não conclui: concluir é dos checks.
         modalTitle.innerText = "Devolver documento";
         setInputsReadOnly(true);
         groupAtaAssinada.classList.add('hidden');
         groupAtaRegistrada.classList.remove('hidden');
         fileInputs.registrada.input.required = true;
-        formStatusVal.value = "Concluído";
+        formStatusVal.value = "Devolvido";
       }
       else if (mode === 'edit_admin') {
         // Correção Completa / Modo Admin
@@ -2949,16 +2929,7 @@
     function renderReembolsos(itens) {
       const box = document.getElementById('reembolso-lista');
       const totalBox = document.getElementById('reembolso-total');
-      const alerta = document.getElementById('reembolso-alerta');
       itens = itens || [];
-
-      const pendentes = itens.filter(it => !it.baixado).length;
-      if (pendentes > 0) {
-        document.getElementById('reembolso-alerta-txt').innerText = `${pendentes} pedido${pendentes > 1 ? 's' : ''} aguardando pagamento`;
-        alerta.classList.remove('hidden');
-      } else {
-        alerta.classList.add('hidden');
-      }
 
       if (itens.length === 0) {
         box.innerHTML = '<div class="reembolso-vazia">Nenhum pedido ainda. Lance o primeiro abaixo.</div>';
@@ -2966,8 +2937,9 @@
         return;
       }
 
-      // Só Cobra/admin dá baixa; o despachante vê o estado, mas não baixa.
-      const podeBaixar = (state.role !== 'despachante');
+      // V4.1: nenhum controle de baixa aqui. Esta lista consolida O QUE FOI
+      // PEDIDO — valor, tipo, objeto e o lastro. Se o pagamento saiu ou não é
+      // assunto do check "Pagamento no Navi", na coluna Status.
       let total = 0, totalReemb = 0, totalServ = 0;
       box.innerHTML = itens.map(it => {
         const v = Number(it.valor) || 0;
@@ -2979,34 +2951,17 @@
           `<a class="file-link-btn" href="${a.url || '#'}" target="_blank"><span class="material-icons-round" style="font-size:11px;">attach_file</span> ${a.nome}</a>`
         ).join(' ') || '<span style="font-size:10px; color: var(--text-muted);">sem anexo</span>';
 
-        const selo = it.baixado
-          ? `<span class="fin-selo fin-selo-pago"><span class="material-icons-round" style="font-size:11px;">check</span> Baixado ${it.baixadoEm || ''}</span>`
-          : `<span class="fin-selo fin-selo-aguardando">Aguardando</span>`;
-
         const tipoTag = `<span class="pag-tipo ${ehServico ? 'pag-tipo-servico' : 'pag-tipo-reembolso'}">${ehServico ? 'Serviço' : 'Reembolso'}</span>`;
 
-        let acaoBaixa = '';
-        if (podeBaixar) {
-          acaoBaixa = it.baixado
-            ? `<button class="btn btn-secondary" style="font-size:10px; padding:5px 10px;" onclick="reabrirBaixa('${it.linha}')">Reabrir</button>`
-            : `<button class="btn btn-success" style="font-size:10px; padding:5px 10px;" onclick="darBaixa('${it.linha}')"><span class="material-icons-round" style="font-size:13px;">check</span> Dar baixa (paguei)</button>`;
-        }
-
         return `
-          <div class="reembolso-item ${it.baixado ? 'reembolso-baixado' : 'reembolso-pendente'}">
+          <div class="reembolso-item">
             <div class="reembolso-item-topo">
               <span class="reembolso-item-topo-esq"><span class="reembolso-valor">${formatMoney(it.valor)}</span>${tipoTag}</span>
-              ${selo}
+              <button class="btn-del-reembolso btn-admin-only" title="Excluir pedido" onclick="removerReembolso('${it.linha}')"><span class="material-icons-round" style="font-size:16px;">delete</span></button>
             </div>
             <span class="reembolso-item-meta">${it.dataHora}${it.autor ? ' · ' + it.autor : ''}</span>
             ${it.objeto ? `<div class="reembolso-just">${it.objeto}</div>` : ''}
-            <div class="reembolso-item-rodape">
-              <span>${anexos}</span>
-              <span style="display:flex; gap:6px; align-items:center;">
-                ${acaoBaixa}
-                <button class="btn-del-reembolso btn-admin-only" title="Excluir pedido" onclick="removerReembolso('${it.linha}')"><span class="material-icons-round" style="font-size:16px;">delete</span></button>
-              </span>
-            </div>
+            <div class="reembolso-item-rodape"><span>${anexos}</span></div>
           </div>`;
       }).join('');
       totalBox.innerHTML = `Total pedido: ${formatMoney(total)}`
@@ -3054,21 +3009,7 @@
       google.script.run.withSuccessHandler(function(data) { state.atas = data || []; renderDashboard(); }).getAtas();
     }
 
-    window.darBaixa = function(linha) {
-      showLoading('Dando baixa...');
-      google.script.run
-        .withSuccessHandler(function() { recarregarFinanceiro(); hideLoading(); })
-        .withFailureHandler(function(err) { avisar('Erro ao dar baixa: ' + ((err && err.message) || err)); hideLoading(); })
-        .darBaixaReembolso(reembolsoAtaAtual, linha);
-    };
-
-    window.reabrirBaixa = function(linha) {
-      showLoading('Reabrindo...');
-      google.script.run
-        .withSuccessHandler(function() { recarregarFinanceiro(); hideLoading(); })
-        .withFailureHandler(function(err) { avisar('Erro ao reabrir: ' + ((err && err.message) || err)); hideLoading(); })
-        .reabrirReembolso(reembolsoAtaAtual, linha);
-    };
+/* (V4.1) darBaixa e reabrirBaixa removidas junto com a baixa por pedido. */
 
     window.removerReembolso = async function(linha) {
       const ok = await confirmar('Excluir este pedido de pagamento?', {

@@ -29,7 +29,7 @@ Arquitetura **Flufa V1** (ver [`CLAUDE.md`](CLAUDE.md) para as decisões).
 - [x] **E-mail** — aviso automático a cada mudança de status.
 - [x] **Autenticação** — login por senha, whitelist na aba `Usuarios`.
 - [x] **V4** — duas trilhas de cadastro (ata / outros documentos), central única de pedidos
-      de pagamento, check "Pagamento no Navi" e "Finalizado" com dois checks.
+      de pagamento, check "Pagamento no Navi" e conclusão derivada dos dois checks.
 - [ ] **Deploy** — publicar como Web App anônimo + apontar a moldura (ver [`docs/GUIA_DEPLOY.md`](docs/GUIA_DEPLOY.md)).
 
 ## Rodar

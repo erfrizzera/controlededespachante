@@ -66,35 +66,61 @@ devolve a "tela" para o Pages e mantém o motor como **peça única**. Decisão 
 do select. Quem entra vê só o que está em aberto; "Todas (inclui finalizadas)" continua a
 um clique.
 
-### Item 2 (V4) — o que é "Finalizado"
-Concluir na Junta **deixou de ser o fim da linha**. `estaFinalizado(ata)` exige três coisas:
-status `Concluído` **+** `Arquivado na Rede` **+** `Pagamento no Navi`. É esse predicado que
-manda no selo da coluna Status e no filtro "Ocultar finalizadas". O meio-termo (concluído mas
-faltando um dos checks) aparece como selo laranja **"Encerrando"**, com a dica dizendo o que
-falta — não é bola de ninguém, porque **só o chat move a bola**. Os dois checks ficam
-empilhados na coluna Status: `Arquivado na Rede` (só admin) e, logo abaixo, `Pagamento no
-Navi` (só Navi=SIM).
+### Item 2 (V4.1) — "Concluído" é derivado, não é um botão
+**Ninguém conclui nada.** O despachante entrega (`Registrado` na ata, `Devolvido` no
+documento) e a Cobra marca os dois checks empilhados na coluna Status — `Arquivado na Rede`
+(só admin) e, logo abaixo, `Pagamento no Navi` (só Navi=SIM). Marcou os dois: `estaConcluido`
+passa a valer e a situação vira **Concluído**. Desmarcou um: volta para a etapa de entrega.
 
-### Item 3 (V4) — vocabulário do e-mail
-"Bola" é gíria interna da tela. Nos e-mails, que saem para fora do time, a mesma ideia virou
-**"responsável atual"**: assunto `Ata 0012 — aguardando retorno: Cobra Brasil` e corpo com
-"Nova manifestação registrada". Os e-mails também sabem se o registro é ata ou documento.
+Por que derivado e não gravado: com duas fontes (um status escrito à mão *e* dois checks) elas
+inevitavelmente se contradizem, e aí não dá para saber qual está certa. Derivando, o dado da
+planilha **nunca** pode discordar da tela, porque a tela não lê o status cru — lê `situacaoDe`.
+
+Consequências que valem lembrar:
+- **Sumiu o botão "Concluir Junta"** e o modo `workflow_concluir`.
+- **Sumiram "Finalizado" e "Encerrando"** (que existiram só na V4.0): Concluído já é o fim.
+- No modo admin o seletor de status oferece **só as etapas reais** — Concluído não é escolhível.
+- Registro antigo gravado como `Concluído` sem os dois checks é lido como a **etapa final da
+  sua trilha** (`Registrada` / `Devolvido`), não como concluído. Algumas atas voltaram para a
+  lista quando isso entrou — é a verdade sobre elas, não um bug.
+- A **Data de Conclusão** passou a ser carimbada pelo segundo check (`carimbarConclusao_`),
+  não mais pelo `saveAta`.
+
+### Item 3 (V4.1) — vocabulário: a "bola" acabou
+Na tela, o toggle virou **"Aguardando: Cobra / Despachante"** (classes CSS `aguard-*`). Nos
+e-mails, **"responsável atual"**: assunto `Ata 0012 — aguardando retorno: Cobra Brasil`, corpo
+com "Nova manifestação registrada". Os e-mails também sabem se o registro é ata ou documento.
+
+A **coluna `Bola` da planilha e o campo `ata.bola` ficaram com o nome antigo**, de propósito:
+renomear dado histórico é risco sem retorno. A gíria sumiu de tudo que o usuário lê.
 
 ### Item 4 (V4) — central única de pedidos de pagamento
 Acabou a divisão entre "reembolso" e "NF". O cifrão abre **uma central só**, e cada pedido
 carrega o mínimo para virar histórico defensável: **objeto** (texto livre), **tipo de
-pagamento** (`Reembolso` | `Serviço`), **valor** e **anexo de lastro** (obrigatório). A baixa
-continua por pedido, e o cifrão fica vermelho enquanto houver qualquer pedido sem baixa.
+pagamento** (`Reembolso` | `Serviço`), **valor** e **anexo de lastro** (obrigatório).
+
+**V4.1: a central não controla mais tempo.** Saíram a baixa por pedido, o selo "Aguardando" e
+o alerta do topo — ela virou um lugar de **consolidar o que foi pedido**, e nada mais. Quem diz
+se o pagamento saiu é o check **"Pagamento no Navi"**, que vale para o registro inteiro. Por
+tabela, o **cifrão vermelho** passou a significar "tem pedido lançado e o Navi ainda não foi
+marcado" (`atasComPedido_` + o check), e é essa mesma regra que alimenta o KPI "Pagamento
+pendente" e o filtro. A coluna `Baixado Em` e as funções `darBaixaReembolso`/`reabrirReembolso`
+saíram de cena (a coluna fica com o histórico das baixas antigas).
 **Honorários deixaram de ser campo solto na ata** — viram pedido do tipo `Serviço`. A coluna
 `Honorários Despachante` fica na planilha só com o histórico, e `setHonorarios` perdeu o
 chamador. Os campos de NF/comprovante/valores saíram do modal da ata inteiros.
 
 ### Item 5 (V4) — a trilha "Outros Documentos"
 Nem tudo que vai pro despachante é ata. A coluna `Tipo` separa duas trilhas:
-- `Ata` — o fluxo completo de sempre (`Enviado → Em Protocolo → Registrada → Concluído`).
-- `Documento` — o pedido simples: `Solicitado → Concluído`, **sem protocolo**. A Cobra abre
-  descrevendo o que precisa (anexo opcional); o despachante devolve anexando o documento, e
-  isso já conclui. Chat, bola, pedidos de pagamento e os dois checks funcionam igual.
+- `Ata` — `Enviado → Protocolizado → Registrado` **→ Concluído** (derivado).
+- `Documento` — `Solicitado → Devolvido` **→ Concluído** (derivado), **sem protocolo**. A Cobra
+  abre descrevendo o que precisa (anexo opcional); o despachante devolve anexando o documento.
+  Chat, Aguardando, pedidos de pagamento e os dois checks funcionam igual.
+
+**Os rótulos são de tela; a planilha guarda outra coisa.** `Em Protocolo` aparece como
+**Protocolizado** e `Registrada` como **Registrado** — a tradução mora num lugar só
+(`ROTULO_ETAPA`/`nomeStatus`). Renomear valor histórico na planilha é risco sem retorno, e o
+projeto já fazia isso com o Protocolizado desde a V3.1.
 
 O tipo é escolhido **só no cadastro** — registro existente nunca troca de trilha (o
 `saveAta` ignora `ata.tipo` quando a linha já tem tipo gravado). Na tela, o documento se

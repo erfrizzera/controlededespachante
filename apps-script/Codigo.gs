@@ -44,6 +44,13 @@ var CABECALHO_ATAS = [
 var TIPO_ATA       = 'Ata';
 var TIPO_DOCUMENTO = 'Documento';
 
+// V4.1 — a ÚLTIMA etapa que o despachante escreve em cada trilha. Depois dela
+// ninguém "conclui" nada: 'Concluído' é DERIVADO dos dois checks da Cobra
+// (Arquivado na Rede + Pagamento no Navi). Por isso o status nunca é gravado
+// como 'Concluído' — quem decide isso é a leitura, não a escrita.
+var ETAPA_FINAL_ATA = 'Registrada';   // exibida como "Registrado"
+var ETAPA_FINAL_DOC = 'Devolvido';
+
 
 /* ==========================================================================
  * 1. PORTA DE ENTRADA — serve a tela do app
@@ -168,7 +175,7 @@ function getAtas() {
 
   var ricos = intervalo.getRichTextValues(); // links embutidos nas células
   var tz = aba.getParent().getSpreadsheetTimeZone() || 'America/Sao_Paulo';
-  var comVermelho = atasComReembolsoPendente_(); // { ataId: true } para o cifrão
+  var comPedido = atasComPedido_(); // { ataId: true } — quem tem algum pedido lançado
 
   var atas = [];
   for (var i = 1; i < dados.length; i++) {
@@ -188,12 +195,24 @@ function getAtas() {
     // Tipo (V4): registro sem tipo gravado é ata (todo o histórico anterior é ata).
     var tipo = String(linha[20] || '').trim() === TIPO_DOCUMENTO ? TIPO_DOCUMENTO : TIPO_ATA;
 
+    // Situação (V4.1) — derivada, nunca lida crua da célula.
+    // Registro antigo gravado como 'Concluído' vira a etapa final da sua trilha:
+    // sem os dois checks ele não está concluído, e mostrar o contrário mentiria.
+    var etapaFinal = (tipo === TIPO_DOCUMENTO) ? ETAPA_FINAL_DOC : ETAPA_FINAL_ATA;
+    var statusCru  = String(linha[4] || '');
+    var etapa      = (statusCru === 'Concluído') ? etapaFinal : statusCru;
+    var concluido  = !!(arqRede && String(arqRede).trim()) &&
+                     !!(navi && String(navi).trim()) &&
+                     etapa === etapaFinal;
+
     atas.push({
       id:                id,
       empresa:           String(linha[1]),
       descricao:         String(linha[2]),
       dataEnvio:         formatarData_(linha[3], tz),
-      status:            String(linha[4]),
+      status:            etapa,          // etapa gravada, já normalizada
+      concluido:         concluido,      // V4.1: derivado dos dois checks
+      etapaFinal:        etapaFinal,
       arquivoAssinada:   String(linha[5] || ''),
       urlAssinada:       lerLink_(rico[5]),
       protocolo:         String(linha[6] || ''),
@@ -211,7 +230,10 @@ function getAtas() {
       statusAnterior:    String(linha[15] || ''),
       statusFinanceiro:  String(linha[16] || ''),
       bola:              bola,
-      financeiroVermelho: !!comVermelho[id], // true = há pedido de reembolso sem baixa
+      // V4.1: a baixa por pedido acabou. O que diz se o pagamento saiu é o check
+      // "Pagamento no Navi" — então o cifrão acende quando há pedido e ele não
+      // foi marcado. Uma fonte de verdade só, em vez de duas se contradizendo.
+      financeiroVermelho: !!comPedido[id] && !(navi && String(navi).trim()),
       arquivadoRede:     !!(arqRede && String(arqRede).trim()), // V3.2: doc arquivado na rede (só admin marca)
       arquivadoRedeEm:   arqRede instanceof Date ? Utilities.formatDate(arqRede, tz, 'dd/MM/yyyy') : String(arqRede || ''),
       pagamentoNavi:     !!(navi && String(navi).trim()),          // V4: baixa do pagamento no Navi
@@ -287,19 +309,17 @@ function ensureMigracaoV4_() {
 }
 
 
-/** Conjunto de atas com ao menos um pedido de reembolso ainda SEM baixa. */
-function atasComReembolsoPendente_() {
+/** Conjunto de registros com ao menos um pedido de pagamento lançado. */
+function atasComPedido_() {
   var mapa = {};
   try {
     var aba = getAbaReembolsos_();
     var dados = aba.getDataRange().getValues();
     for (var i = 1; i < dados.length; i++) {
       var id = String(dados[i][0] || '');
-      if (!id) continue;
-      var baixado = String(dados[i][6] || '').trim(); // coluna 7 = "Baixado Em"
-      if (!baixado) mapa[id] = true;
+      if (id) mapa[id] = true;
     }
-  } catch (e) { Logger.log('atasComReembolsoPendente_ falhou: ' + e); }
+  } catch (e) { Logger.log('atasComPedido_ falhou: ' + e); }
   return mapa;
 }
 
@@ -378,10 +398,10 @@ function saveAta(ata) {
   if (ata.protocolo && !dataProtocolo) dataProtocolo = new Date();
   else if (ata.dataProtocolo) dataProtocolo = new Date(ata.dataProtocolo + 'T12:00:00');
 
-  // Data de Conclusão: automática quando vira "Concluído".
+  // Data de Conclusão: V4.1 — quem grava não é mais o status (que nunca vira
+  // 'Concluído' por aqui), e sim o segundo check, em carimbarConclusao_.
   var dataConclusao = dataConclusaoAtual;
-  if (ata.status === 'Concluído' && !dataConclusao) dataConclusao = new Date();
-  else if (ata.dataConclusao) dataConclusao = new Date(ata.dataConclusao + 'T12:00:00');
+  if (ata.dataConclusao) dataConclusao = new Date(ata.dataConclusao + 'T12:00:00');
 
   var dataEnvio = dataEnvioAtual ? dataEnvioAtual
                  : (ata.dataEnvio ? new Date(ata.dataEnvio + 'T12:00:00') : new Date());
@@ -856,10 +876,29 @@ function setArquivadoRede(ataId, valor) {
   for (var i = 1; i < dados.length; i++) {
     if (String(dados[i][0]) === String(ataId)) {
       aba.getRange(i + 1, 19).setValue(valor ? new Date() : '');
+      carimbarConclusao_(aba, i + 1);
       return 'Sucesso';
     }
   }
   return 'Não encontrado';
+}
+
+/**
+ * V4.1 — a Data de Conclusão segue os dois checks, porque são eles que definem
+ * o "Concluído". Marcou os dois: carimba (se ainda não tiver data). Desmarcou
+ * qualquer um: limpa, porque o registro deixou de estar concluído.
+ */
+function carimbarConclusao_(aba, linha) {
+  try {
+    var arqRede = String(aba.getRange(linha, 19).getValue() || '').trim();
+    var navi    = String(aba.getRange(linha, 20).getValue() || '').trim();
+    var atual   = aba.getRange(linha, 15).getValue();
+    if (arqRede && navi) {
+      if (!atual) aba.getRange(linha, 15).setValue(new Date());
+    } else if (atual) {
+      aba.getRange(linha, 15).setValue('');
+    }
+  } catch (e) { Logger.log('carimbarConclusao_ falhou: ' + e); }
 }
 
 /**
@@ -874,6 +913,7 @@ function setPagamentoNavi(ataId, valor) {
   for (var i = 1; i < dados.length; i++) {
     if (String(dados[i][0]) === String(ataId)) {
       aba.getRange(i + 1, 20).setValue(valor ? new Date() : '');
+      carimbarConclusao_(aba, i + 1);
       return 'Sucesso';
     }
   }
@@ -1022,15 +1062,20 @@ function sendDevolucaoEmail_(p) {
  * A V4 acabou com a divisão entre "reembolso" e "NF": existe UMA central de
  * pedidos de pagamento. Cada pedido é uma linha na aba "Reembolsos" (o nome da
  * aba fica, para não perder o histórico) com: Objeto (texto livre), Tipo
- * (Reembolso | Serviço), Valor, anexos de lastro e a baixa própria.
+ * (Reembolso | Serviço), Valor e anexos de lastro.
  * Honorários, que eram um campo solto na ata, entram aqui como Tipo=Serviço.
+ * V4.1: a BAIXA POR PEDIDO acabou. A central virou um lugar de consolidar o que
+ * foi pedido — sem controle de tempo, sem "aguardando". Quem diz que o pagamento
+ * saiu é o check "Pagamento no Navi", que vale para o registro inteiro. A coluna
+ * "Baixado Em" fica na planilha só com o histórico das baixas antigas.
  * A coluna "Reembolso Taxas" da aba Atas guarda a SOMA de todos os pedidos.
  */
 
 var TIPO_PAG_REEMBOLSO = 'Reembolso';
 var TIPO_PAG_SERVICO   = 'Serviço';
 
-/** Aba "Reembolsos": uma linha por pedido. Col 7 = "Baixado Em"; col 8 = "Tipo". */
+/** Aba "Reembolsos": uma linha por pedido. Col 7 = "Baixado Em" (legado V4.1);
+ *  col 8 = "Tipo". */
 function getAbaReembolsos_(planilha) {
   planilha = planilha || getPlanilha_();
   var aba = planilha.getSheetByName('Reembolsos');
@@ -1058,7 +1103,6 @@ function getReembolsos(ataId) {
   var itens = [];
   for (var i = 1; i < dados.length; i++) {
     if (String(dados[i][0]) !== String(ataId)) continue;
-    var baixadoEm = dados[i][6];
     // Pedido antigo (pré-V4) não tem tipo gravado: tudo que existia era reembolso.
     var tipoPag = String(dados[i][7] || '').trim() === TIPO_PAG_SERVICO ? TIPO_PAG_SERVICO : TIPO_PAG_REEMBOLSO;
     itens.push({
@@ -1068,9 +1112,7 @@ function getReembolsos(ataId) {
       valor:        Number(dados[i][3]) || 0,
       objeto:       String(dados[i][4] || ''),
       tipo:         tipoPag,
-      arquivos:     lerArquivosCelula_(dados[i][5], ricos[i][5]),
-      baixado:      !!(baixadoEm && String(baixadoEm).trim()),
-      baixadoEm:    baixadoEm instanceof Date ? Utilities.formatDate(baixadoEm, tz, 'dd/MM/yyyy') : String(baixadoEm || '')
+      arquivos:     lerArquivosCelula_(dados[i][5], ricos[i][5])
     });
   }
   return itens;
@@ -1097,7 +1139,6 @@ function recomputarTotalReembolso_(ataId) {
  * Registra um novo pedido de pagamento.
  * dados = { ataId, autor, valor, objeto, tipo, arquivos:[{nome,url}] }
  * Os anexos já subiram direto pro Drive; aqui só guardamos os links (JSON).
- * O pedido nasce SEM baixa (coluna 7 vazia) — é isso que acende o cifrão.
  */
 function postReembolso(dados) {
   var abaAtas = getAbaAtas_();
@@ -1120,29 +1161,8 @@ function postReembolso(dados) {
   return { sucesso: true, total: total };
 }
 
-/** Dá baixa num pedido (marca como pago). Só faz sentido pra Cobra/admin (checado na tela). */
-function darBaixaReembolso(ataId, linha) {
-  var aba = getAbaReembolsos_();
-  var dados = aba.getDataRange().getValues();
-  var alvo = Number(linha);
-  if (alvo >= 2 && alvo <= dados.length && String(dados[alvo - 1][0]) === String(ataId)) {
-    aba.getRange(alvo, 7).setValue(new Date());
-    return 'Sucesso';
-  }
-  return 'Não encontrado';
-}
-
-/** Reabre um pedido baixado por engano (limpa a baixa). */
-function reabrirReembolso(ataId, linha) {
-  var aba = getAbaReembolsos_();
-  var dados = aba.getDataRange().getValues();
-  var alvo = Number(linha);
-  if (alvo >= 2 && alvo <= dados.length && String(dados[alvo - 1][0]) === String(ataId)) {
-    aba.getRange(alvo, 7).setValue('');
-    return 'Sucesso';
-  }
-  return 'Não encontrado';
-}
+/* (V4.1) darBaixaReembolso e reabrirReembolso removidas: a baixa por pedido
+ * deixou de existir. O controle do pagamento é o check "Pagamento no Navi". */
 
 /** Exclui um pedido de pagamento (pela linha) e recalcula o total. */
 function deleteReembolso(ataId, linha) {
