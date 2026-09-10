@@ -178,6 +178,7 @@ function getAtas() {
   ensureMigracaoV3_();   // uma vez só: destrava "Pendência" e semeia a Bola
   ensureMigracaoV4_();   // uma vez só: semeia Tipo='Ata' e liga o Navi de quem já era
   ensureMigracaoV5_();   // uma vez só: religa o chat do antigo 23 e recalcula a pendência
+  ensureMigracaoV6_();   // uma vez só: devolve a Data de Conclusão apagada dos pedidos 9 a 14
 
   var aba = getAbaAtas_();
   var intervalo = aba.getDataRange();
@@ -1133,19 +1134,24 @@ function setArquivadoRede(ataId, valor) {
 }
 
 /**
- * V4.1 — a Data de Conclusão segue os dois checks, porque são eles que definem
- * o "Concluído". Marcou os dois: carimba (se ainda não tiver data). Desmarcou
- * qualquer um: limpa, porque o registro deixou de estar concluído.
+ * Carimba a Data de Conclusão quando os dois checks da V4.1 (Rede + Navi)
+ * ficam marcados — se ainda não houver data.
+ *
+ * NÃO APAGA MAIS (V4.2). Até aqui, desmarcar qualquer um dos dois limpava a
+ * data. Era a única escrita do sistema que apagava a coluna 15, e entre 09 e
+ * 10/09/2026 os pedidos 9 a 14 — concluídos em julho e agosto — perderam a data
+ * histórica de conclusão assim (ver ensureMigracaoV6_, que as devolveu).
+ *
+ * Data é registro do que aconteceu, e registro não se desfaz. "Está concluído
+ * agora?" é outra pergunta, e quem responde é status + checks (etapaDe na tela
+ * nova, getAtas na antiga) — nunca a presença da data.
  */
 function carimbarConclusao_(aba, linha) {
   try {
     var arqRede = String(aba.getRange(linha, 19).getValue() || '').trim();
     var navi    = String(aba.getRange(linha, 20).getValue() || '').trim();
-    var atual   = aba.getRange(linha, 15).getValue();
-    if (arqRede && navi) {
-      if (!atual) aba.getRange(linha, 15).setValue(new Date());
-    } else if (atual) {
-      aba.getRange(linha, 15).setValue('');
+    if (arqRede && navi && !aba.getRange(linha, 15).getValue()) {
+      aba.getRange(linha, 15).setValue(new Date());
     }
   } catch (e) { Logger.log('carimbarConclusao_ falhou: ' + e); }
 }
@@ -1329,6 +1335,39 @@ function getResumoChats() {
     }
   }
   return mapa;
+}
+
+/**
+ * V4.2 — MIGRADO_V6. Devolve a Data de Conclusão HISTÓRICA dos pedidos 9 a 14,
+ * apagada pela versão antiga de carimbarConclusao_ (ver lá).
+ *
+ * Os valores vêm da leitura da planilha de 09/09/2026, feita antes do
+ * apagamento. Duas travas: só preenche célula VAZIA (se alguém já pôs uma data,
+ * ela manda) e só em pedido cuja descrição ainda é a reeleição de diretoria de
+ * julho — os seis são "AGE - Reeleição". Qualquer outra coisa, não toca.
+ */
+function ensureMigracaoV6_() {
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty('MIGRADO_V6') === 'ok') return;
+  try {
+    var DATAS = { '9': [2026, 8, 3], '10': [2026, 7, 31], '11': [2026, 8, 3],
+                  '12': [2026, 8, 3], '13': [2026, 8, 3], '14': [2026, 8, 3] };
+    var aba = getAbaAtas_();
+    var dados = aba.getDataRange().getValues();
+    var log = [];
+    for (var i = 1; i < dados.length; i++) {
+      var id = String(dados[i][0] || '').trim();
+      var d = DATAS[id];
+      if (!d || dados[i][14]) continue;                                  // não é um dos seis, ou já tem data
+      if (String(dados[i][2] || '').indexOf('Reelei') === -1) continue;  // não é mais o pedido de julho
+      aba.getRange(i + 1, 15).setValue(new Date(d[0], d[1] - 1, d[2], 12, 0, 0));
+      log.push('Pedido ' + id + ': Data de Conclusão restaurada (' +
+               ('0' + d[2]).slice(-2) + '/' + ('0' + d[1]).slice(-2) + '/' + d[0] + ')');
+    }
+    props.setProperty('MIGRADO_V6', 'ok');
+    props.setProperty('MIGRADO_V6_LOG', log.join(' | ') || 'nada mudou');
+    Logger.log('Migração V6: ' + (log.join(' | ') || 'nada mudou'));
+  } catch (e) { Logger.log('Migração V6 falhou (tenta de novo no próximo acesso): ' + e); }
 }
 
 /**

@@ -309,6 +309,19 @@ Três coisas quebraram no caminho e ficam registradas porque não são óbvias:
 > o screenshot não mostrava. Para largura de texto, `scrollWidth` também mente quando o overflow
 > é visível; medir com um `<span>` fantasma na mesma fonte.
 
+### A Data de Conclusão não se apaga mais (implantação 24)
+Entre 09 e 10/09 os pedidos **9 a 14** — concluídos em julho e agosto — perderam a Data de
+Conclusão. A causa era `carimbarConclusao_`, da V4.1: ao **desmarcar** Rede ou Navi, ela limpava a
+data. Era a única escrita do sistema que apagava a coluna 15 (o `saveAta` preserva, o
+`concluirPedido` só grava), e com a tela nova em uso, marcar e desmarcar um check virou coisa de
+todo dia.
+
+Agora ela **só carimba** (quando Rede + Navi fecham e ainda não há data) e **nunca apaga**. Data é
+registro do que aconteceu; "está concluído agora?" é outra pergunta, respondida por status + checks.
+A **migração V6** (`ensureMigracaoV6_`, `MIGRADO_V6`) devolveu as seis datas a partir da leitura
+da planilha de 09/09, antes do apagamento (03/08/2026 em todos, menos o 10: 31/07/2026) — só em
+célula vazia e só se a descrição ainda for a da reeleição de julho.
+
 ### O que veio junto sem estar no design
 O design tem duas rotas e nada de administração. Como o admin usa isso, ficou o botão **"Admin"**
 no cabeçalho (só admin) e um **rodapé discreto na gaveta** (só admin) com "Corrigir dados" e
@@ -368,9 +381,13 @@ Fica o registro do que o serviço envolvia, que é maior do que parece:
 Foi ensaiada antes de tocar no dado real, contra uma planilha simulada com as linhas de verdade:
 12 conferências, incluindo as duas travas (rodar de novo aborta; par não-duplicado aborta).
 
-> **A lição que fica é do cadastro, não da correção:** nada impede um duplo-clique de criar dois
+> **A lição que fica é do cadastro, não da correção:** nada impedia um duplo-clique de criar dois
 > pedidos. `reservarProximoId` tem `LockService` e faz o certo — devolve 22 e 23, dois números
-> diferentes. O que falta é a tela travar o botão no primeiro clique.
+> diferentes. Quem tinha de barrar o segundo clique era a tela: o id é reservado **antes** do
+> "Salvando…" aparecer, e um segundo clique nessa janela reservava outro número. **Consertado nas
+> duas telas (implantação 24):** enquanto um cadastro está em andamento, o botão fica desabilitado
+> e novos envios são ignorados (`criarPedido` na nova, `handleFormSubmit` na antiga); se der erro,
+> o botão volta.
 
 **O que de fato aconteceu (10/09):** a função não chegou a rodar — a correção foi feita **à mão
 na planilha** (apagada a linha do 22, o 23 redigitado como 22). As pastas do Drive ficaram com os
@@ -518,7 +535,7 @@ tem capturas de tela do sistema. O mesmo vale para `design/`.
 
 ## Status
 
-**V4.2.0 no ar (2026-09-10, implantação 23).** Endereço:
+**V4.2.0 no ar (2026-09-10, implantação 24).** Endereço:
 https://erfrizzera.github.io/controlededespachante/
 
 A V4 foi a maior mudança desde a V3 — cadastro, financeiro, coluna Status, e-mail e esquema de
@@ -542,7 +559,8 @@ Estado real da implantação (conferido com `clasp list-deployments` em 2026-08-
 | Onde | O quê |
 |---|---|
 | Implantação de produção | `AKfycbz8FqcbL2DqwkqUH0vmoJ503Vui7G7wwD718-QZrGpVeSUXzNgSPN2g5JG9FrgWeMnF` |
-| Versão servida hoje | **23** (V4.2 — tela nova como padrão) — no ar desde 10/09 |
+| Versão servida hoje | **24** (V4.2 + Data de Conclusão que não se apaga + trava de duplo clique) — 10/09 |
+| Primeira da V4.2 | **23** (tela nova como padrão) — 10/09 |
 | Base estável anterior | **22** = V4.1 (o porto seguro pré-V4.2); **21** = V3.2; **19** = V3.1 |
 | Reverter para | versão **22** (`update-deployment -V 22 <deploymentId>`) — volta código **e** padrão |
 
@@ -555,7 +573,7 @@ primeira maiúscula) + cifrão por último + coluna "Tempo de Processo" removida
 remoção da coluna foram publicados **um de cada vez** (versões 16→19) porque o item 1 original
 (tempo na descrição) quebrava o app no ar; ver a lição em "Domínio (V3)".
 
-**V4.2 no ar (10/09, implantação 23): a tela nova é o padrão.** Quem abre o endereço cai no quadro
+**V4.2 no ar (10/09, implantação 23; ajustes na 24): a tela nova é o padrão.** Quem abre o endereço cai no quadro
 por etapa; a V4.1 continua em `?ui=antigo`. Antes de virar padrão, a V4.2 passou pelo `@HEAD` em
 `?ui=novo`, com várias rodadas de ajuste de uso real. O histórico abaixo é de quando ela ainda
 estava só lá.
@@ -572,6 +590,12 @@ Para reverter, a base estável é a **22**.
 
 **`version.json` foi para 4.2.0 junto com a troca de padrão** — antes disso o selo mentiria,
 porque dizia o que o usuário via e ele ainda via a V4.1.
+
+> **O GitHub estava 6 commits atrás.** As rodadas da V3.2 à V4.1 foram commitadas e nunca
+> enviadas: o sistema não sentiu, porque as telas vivem no Apps Script, mas a moldura e o selo no
+> Pages ficaram velhos. **O `git push` pede login do GitHub** (Git Credential Manager) — num
+> terminal interativo abre o navegador; rodado pelo Claude em segundo plano, ele fica **esperando
+> um login que ninguém vê, para sempre**. Push é do dono, no terminal dele.
 
 **O que olhar nos primeiros dias:** com o Concluído derivado, ata antiga gravada como
 `Concluído` **sem** os dois checks voltou a aparecer na lista, como `Registrado` com os checks

@@ -1743,7 +1743,35 @@ async function lancarPagamento(p) {
   } catch (e) { tratarErro(e); }
 }
 
+/**
+ * Trava de duplo clique no cadastro.
+ *
+ * Os pedidos 22 e 23 nasceram assim: dois cliques, dois envios, e o servidor
+ * fez o certo com cada um — reservarProximoId tem trava e devolveu dois
+ * numeros diferentes. Quem tinha de barrar o segundo clique era a tela. Agora,
+ * enquanto um cadastro esta em andamento, o botao fica desabilitado e um novo
+ * clique e ignorado; se der erro, o botao volta.
+ */
+let cadastroEmAndamento = false;
+
 async function criarPedido() {
+  if (cadastroEmAndamento) return;
+  cadastroEmAndamento = true;
+  const botao = $('f-criar');
+  const rotulo = botao ? botao.textContent : '';
+  if (botao) { botao.disabled = true; botao.textContent = 'Enviando…'; }
+  try {
+    await criarPedidoDeFato();
+  } finally {
+    cadastroEmAndamento = false;
+    // Deu certo, o formulario ja sumiu (irPara('quadro')) e o botao nao existe
+    // mais; deu erro, ele volta ao normal para a pessoa tentar de novo.
+    const b = $('f-criar');
+    if (b) { b.disabled = false; b.textContent = rotulo; }
+  }
+}
+
+async function criarPedidoDeFato() {
   const ato = state.fTipo === 'ato';
   const descricao = ato ? state.fDesc.trim() : state.fDoc;
   if (!state.fEmpresa) { avisar('Escolha a empresa.'); return; }
