@@ -140,6 +140,38 @@ select.input{cursor:pointer}
 .pedido .badge{margin-left:auto;display:flex;align-items:center;gap:4px;font:600 10px var(--body);
   color:var(--paper);background:var(--acc7);padding:2px 6px}
 
+/* ==========================================================================
+   LEGIBILIDADE — opção B ("cartão em relevo"), escolhida pela equipe em 10/09
+   ==========================================================================
+   Parte da equipe lia o quadro com dificuldade. Medido na tela de antes: o
+   texto miúdo dos cartões ficava entre 3,6 e 4,9:1 — o tipo do pedido ABAIXO
+   do mínimo de 4,5 — e o contorno do cartão em 1,4:1, quase invisível.
+   Três alternativas foram comparadas lado a lado com a equipe (mockup
+   "Legibilidade do Quadro"); esta pôs o texto miúdo em grafite e fez do
+   cartão uma folha clara sobre um quadro um pouco mais escuro. Todo texto do
+   cartão fica acima de 7:1 (AAA).
+
+   Os valores moram JUNTOS aqui, depois das regras originais, para a próxima
+   revisão achar num lugar só — e para reverter bastar apagar o bloco. */
+:root{
+  --quadro-fundo:#e0e3e7;           /* o chão do quadro, um tom abaixo do papel */
+  --cartao-fundo:#fcfcfd;           /* a folha do cartão */
+  --cartao-borda:rgba(29,31,32,.22);
+  --txt-miudo:#48494a;              /* número, dias, tipo, protocolo, rótulos */
+  --txt-desc:#3a3c3e;               /* descrição do pedido */
+}
+#quadro{background:var(--quadro-fundo)}
+.coluna{border-right-color:rgba(29,31,32,.12)}
+.coluna-cab{border-bottom-color:rgba(29,31,32,.22)}
+.coluna-cab .n{color:var(--txt-miudo)}
+.vazio{color:var(--txt-miudo);border-color:rgba(29,31,32,.28)}
+.pedido{background:var(--cartao-fundo);border-color:var(--cartao-borda)}
+.pedido:hover{background:#f1f3f7}                            /* tint azul .07 sobre a folha */
+.pedido.sel{background:#e8edf2;border-color:var(--acc)}       /* tint azul .12 sobre a folha */
+.pedido .l1,.pedido .prot,.pedido .pendente-de{color:var(--txt-miudo)}
+.pedido .desc{color:var(--txt-desc)}
+.pedido .rodape{border-top-color:var(--cartao-borda)}
+
 /* — cadastro — */
 #novo{display:flex;flex-wrap:wrap;flex:1}
 #novo-principal{flex:1;min-width:0;padding:34px 40px 48px;max-width:820px}
@@ -1025,8 +1057,8 @@ function cartaoHTML(p) {
     <div class="l1">
       <span>Pedido ${esc(p.id)}</span>
       <span style="display:flex;align-items:center;gap:7px">
-        <span class="tipo" style="color:${doc ? '#416180' : 'rgba(29,31,32,.55)'}">${esc(rotuloTipo(p))}</span>
-        <span style="color:${velho ? '#416180' : 'rgba(29,31,32,.62)'}">${dias}d</span>
+        <span class="tipo" style="color:${doc ? '#416180' : 'var(--txt-miudo)'}">${esc(rotuloTipo(p))}</span>
+        <span style="color:${velho ? '#416180' : 'var(--txt-miudo)'}">${dias}d</span>
       </span>
     </div>
     <div class="empresa">${esc(p.empresa)}</div>
@@ -1158,13 +1190,13 @@ function renderNovo() {
 
   <div id="novo-lateral">
     <div class="kicker">Prévia do cartão</div>
-    <div class="card" style="padding:13px 14px;gap:6px;margin-top:12px">
-      <div style="display:flex;justify-content:space-between;gap:8px;font:400 10.5px var(--mono);color:var(--tx-2)">
+    <div class="card" style="padding:13px 14px;gap:6px;margin-top:12px;background:var(--cartao-fundo);border-color:var(--cartao-borda)">
+      <div style="display:flex;justify-content:space-between;gap:8px;font:400 10.5px var(--mono);color:var(--txt-miudo)">
         <span>Pedido ${esc(state.novoId || '····')}</span>
         <span class="tipo" style="font:400 9px var(--body);letter-spacing:.12em;text-transform:uppercase">${ato ? 'Ato societário' : 'Documento'}</span>
       </div>
       <div id="prev-empresa" style="font:600 14px/1.2 var(--cond);letter-spacing:.02em">${esc(state.fEmpresa)}</div>
-      <div id="prev-desc" style="font:400 12px/1.4 var(--body);color:rgba(29,31,32,.65)">${esc(curto(descPreview, 54))}</div>
+      <div id="prev-desc" style="font:400 12px/1.4 var(--body);color:var(--txt-desc)">${esc(curto(descPreview, 54))}</div>
     </div>
 
     <div class="kicker" style="margin:28px 0 10px">Fluxo esperado</div>
