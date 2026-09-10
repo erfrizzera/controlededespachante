@@ -1,5 +1,5 @@
 {
-  "version": "4.1.0",
-  "atualizadoEm": "2026-09-09",
-  "nota": "V4.1 (ajustes sobre a V4): 'Concluido' deixou de ser um passo que alguem clica e virou DERIVADO dos dois checks (Arquivado na Rede + Pagamento no Navi) -- sumiram o botao Concluir Junta e os conceitos Finalizado/Encerrando; a trilha da ata le Enviado -> Protocolizado -> Registrado -> Concluido e a do documento Solicitado -> Devolvido -> Concluido (rotulos de tela; a planilha segue com 'Em Protocolo' e 'Registrada'); 'a bola' virou 'Aguardando' em toda a tela; a central de pagamentos perdeu baixa/aguardando e virou consolidacao pura, com o cifrao vermelho passando a seguir o check do Navi; botao do topo virou 'Cadastrar Pedido'. Sobre a base V4.0."
+  "version": "4.2.0",
+  "atualizadoEm": "2026-09-10",
+  "nota": "V4.2: a tela nova (quadro por etapa + gaveta, design system Industry, vinda do handoff do Claude Design) vira o PADRAO; a V4.1 fica em ?ui=antigo. Concluido volta a ser gravado por botao (CONCLUIR PEDIDO) e exige os tres checks (Rede, E-mail de atualizacao interna -- novo, coluna 22 -- e Navi). Etiquetas no cartao: Novo/Atrasado, 'Pendente de quem' (Cobra/Despachante) e 'Pendente do que' (checklist). Pendencia com regra unica: e de quem nao falou por ultimo; notas do sistema nao contam; migracao V5 recalculou todos os pedidos e religou o chat do antigo 23. Painel Admin com atalhos para as abas da planilha; correcao manual da pendencia. E-mails com o visual novo."
 }

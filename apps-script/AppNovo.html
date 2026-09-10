@@ -1,0 +1,2122 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Controle de Despachante</title>
+
+  <!-- Barlow / Barlow Condensed sao as fontes do design system "Industry".
+       Se o Google Fonts nao responder, a pilha de sistema assume e a tela
+       continua legivel — fonte nunca pode derrubar o app. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Condensed:wght@400;600&display=swap" rel="stylesheet">
+
+<style>
+/* ==========================================================================
+   TOKENS — os valores do handoff, num lugar so.
+   Regra do design system: border-radius 0 em tudo, bordas de 1px, e a unica
+   sombra do produto e a da gaveta.
+   ========================================================================== */
+:root{
+  --ink:#1d1f20;
+  --paper:#f2f2f3;
+  --acc:#5980a6;        /* acento: borda de cartao selecionado, foco */
+  --acc7:#416180;       /* acento escuro: botoes, rotulos de acao, numeros-chave */
+  --acc9:#1d2d3d;       /* acento profundo: tag "Concluido" */
+  --div-forte:rgba(29,31,32,.16);
+  --div-fraco:rgba(29,31,32,.1);
+  --tx-2:rgba(29,31,32,.62);
+  --tx-3:rgba(29,31,32,.7);
+  --tint-hover:rgba(89,128,166,.07);
+  --tint-sel:rgba(89,128,166,.12);
+  --tint-bloco:rgba(89,128,166,.06);
+  --cond:"Barlow Condensed",system-ui,sans-serif;
+  --body:"Barlow",system-ui,sans-serif;
+  --mono:ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--paper);color:var(--ink);font-family:var(--body);font-size:13px}
+h1,h2,h3,h4{font-family:var(--cond);font-weight:600;margin:0}
+button{font-family:inherit}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:rgba(29,31,32,.22)}
+::-webkit-scrollbar-track{background:transparent}
+
+/* — controles — */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;
+  font-family:var(--cond);font-weight:600;font-size:13px;line-height:1.2;color:var(--ink);
+  background:transparent;border:1px solid transparent;border-radius:0;padding:0 14px;height:34px;
+  text-decoration:none;white-space:nowrap}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-primary{background:var(--acc);color:var(--paper)}
+.btn-primary:hover:not(:disabled){background:var(--acc7)}
+.btn-secondary{border-color:var(--div-forte)}
+.btn-secondary:hover{background:rgba(29,31,32,.07)}
+.btn-ghost{color:var(--acc7);padding:0 6px}
+.btn-ghost:hover{background:rgba(89,128,166,.1)}
+.btn-icon{width:34px;height:34px;padding:0;flex:none}
+.btn svg{display:block}
+
+.field>label{display:block;font-size:12px;margin-bottom:5px;color:var(--tx-3)}
+.input{width:100%;height:34px;padding:6px 10px;font:inherit;font-size:13px;color:var(--ink);
+  caret-color:var(--acc);background:var(--paper);border:1px solid var(--div-forte);border-radius:0}
+.input:hover{border-color:rgba(29,31,32,.45)}
+.input:focus-visible{border-color:var(--acc);outline-offset:0}
+textarea.input{min-height:64px;height:auto;resize:vertical;line-height:1.5}
+select.input{cursor:pointer}
+
+.card{display:flex;flex-direction:column;background:transparent;border:1px solid var(--div-forte);border-radius:0}
+.tag{display:inline-flex;align-items:center;font-family:var(--cond);font-weight:600;font-size:9.5px;
+  letter-spacing:.14em;text-transform:uppercase;padding:3px 8px;border-radius:0;border:1px solid}
+.kicker{font:400 10px var(--body);letter-spacing:.16em;text-transform:uppercase;color:rgba(29,31,32,.55)}
+
+/* — cabecalho — */
+#topo{display:flex;align-items:stretch;flex-wrap:wrap;border-bottom:1px solid var(--div-forte);
+  background:var(--paper);position:sticky;top:0;z-index:5}
+#marca{display:flex;align-items:center;gap:12px;padding:0 24px;height:58px}
+#marca .m1{font:600 17px var(--cond);letter-spacing:.16em;text-transform:uppercase}
+#marca .barra{width:1px;height:20px;background:rgba(29,31,32,.35)}
+#marca .m2{font:400 15px var(--cond);letter-spacing:.1em;text-transform:uppercase;color:var(--tx-3)}
+#acoes-topo{display:flex;align-items:center;gap:12px;margin-left:auto;padding:0 24px;min-width:0}
+#busca{width:clamp(160px,22vw,300px)}
+.btn-cta{padding:0 16px;letter-spacing:.08em;text-transform:uppercase;font-size:12px}
+
+/* — quadro — */
+#quadro{flex:1;min-width:0;overflow-x:auto;display:grid;grid-template-columns:repeat(4,minmax(240px,1fr))}
+.coluna{padding:18px 16px 28px;border-right:1px solid var(--div-fraco);min-height:660px;min-width:0}
+.coluna-cab{display:flex;align-items:baseline;gap:8px;padding-bottom:12px;margin-bottom:16px;
+  border-bottom:1px solid var(--div-forte)}
+.coluna-cab .t{font:600 12px var(--cond);letter-spacing:.14em;text-transform:uppercase}
+.coluna-cab .n{font:400 11px var(--mono);color:var(--tx-2)}
+.pilha{display:flex;flex-direction:column;gap:14px}
+.vazio{border:1px dashed rgba(29,31,32,.2);padding:16px 14px;font:400 11.5px var(--body);color:var(--tx-2)}
+
+.pedido{padding:13px 14px;gap:7px;cursor:pointer}
+.pedido:hover{background:var(--tint-hover)}
+.pedido.sel{background:var(--tint-sel);border-color:var(--acc)}
+.pedido .l1{display:flex;justify-content:space-between;align-items:center;gap:8px;
+  font:400 10.5px var(--mono);color:var(--tx-2)}
+.pedido .tipo{font:400 9px var(--body);letter-spacing:.12em;text-transform:uppercase}
+.pedido .empresa{font:600 14px/1.2 var(--cond);letter-spacing:.02em}
+.pedido .desc{font:400 12px/1.4 var(--body);color:rgba(29,31,32,.65)}
+.pedido .prot{display:flex;align-items:center;gap:6px;font:400 10.5px var(--mono);color:var(--tx-2)}
+.pedido .prot .rot{font:400 9px var(--body);letter-spacing:.14em;text-transform:uppercase}
+/* O rodape tem duas linhas: em cima o que e do pedido (prazo, pendencias, nao
+   lidas); embaixo, de quem e a vez. Separar evita que "Pendente de:" seja lido
+   como legenda das outras etiquetas. */
+.pedido .rodape{display:flex;flex-direction:column;gap:6px;padding-top:8px;border-top:1px solid var(--div-fraco)}
+.pedido .rodape-linha{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+/* Espacamento .06em, e nao o .12em dos outros micro-rotulos, por medida: na
+   coluna minima (240px) o cartao tem 178px uteis, e "PENDENTE DE QUEM:" (104px
+   a .12em) + a etiqueta DESPACHANTE (71px) + o gap somavam 181 — a etiqueta
+   caia sozinha para a linha de baixo. A .06em o rotulo tem 95px e sobram 6px. */
+.pedido .pendente-de{font:400 9px var(--body);letter-spacing:.06em;text-transform:uppercase;
+  color:var(--tx-2);white-space:nowrap}
+/* Etiquetas do cartao. O tom padrao e o acento do sistema; verde e vermelho
+   entram so no prazo (coluna "A protocolar"), a pedido do cliente. Sao tons
+   surdos, no mesmo peso das tags de status ("Na Junta" e #d6ebff/#2c455d), e
+   nao verde/vermelho de semaforo — o design system e de acento unico e um par
+   saturado brigaria com tudo. */
+.etiq{display:inline-flex;align-items:center;font:600 9px var(--cond);letter-spacing:.12em;
+  text-transform:uppercase;padding:2px 6px;border:1px solid rgba(89,128,166,.5);color:var(--acc7)}
+.etiq.pronto{border-color:var(--acc7);background:var(--acc7);color:var(--paper)}
+.etiq.novo{background:#dcefe1;border-color:#b6d9c1;color:#2c5340}
+.etiq.atrasado{background:#fadedd;border-color:#f0bcb8;color:#7a2f2b}
+/* De quem e a vez. Azul para a Cobra, roxo para o despachante — duas partes,
+   duas cores, e a cor sozinha ja diz de quem e a bola de longe. */
+.etiq.cobra{background:#d6ebff;border-color:#b5d9fd;color:#2c455d}
+.etiq.despachante{background:#e8e0f2;border-color:#cdbde4;color:#4a3663}
+/* Pendencias da Conferencia, uma cor por item, para reconhecer de relance qual
+   falta sem ler. Escolhidas FORA das cores que ja tem significado no quadro
+   (azul = Cobra, roxo = despachante, verde = novo, vermelho = atrasado), para
+   nenhuma cor querer dizer duas coisas. */
+.etiq.rede{background:#f6ead2;border-color:#e6cf9f;color:#6b4e16}
+.etiq.email{background:#f5dde9;border-color:#e5b8cf;color:#6e2a4d}
+.etiq.navi{background:#d5ecea;border-color:#a9d3cf;color:#1f5550}
+.pedido .badge{margin-left:auto;display:flex;align-items:center;gap:4px;font:600 10px var(--body);
+  color:var(--paper);background:var(--acc7);padding:2px 6px}
+
+/* — cadastro — */
+#novo{display:flex;flex-wrap:wrap;flex:1}
+#novo-principal{flex:1;min-width:0;padding:34px 40px 48px;max-width:820px}
+#novo-lateral{width:clamp(280px,30%,360px);flex:none;min-width:0;padding:34px 30px;
+  background:rgba(89,128,166,.05);border-left:1px solid var(--div-forte)}
+.grade{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin-top:22px}
+.span2{grid-column:span 2}
+.seg{display:flex;border:1px solid rgba(29,31,32,.2);max-width:420px}
+.seg button{flex:1;border:0;cursor:pointer;height:38px;background:transparent;color:var(--tx-3);
+  font:600 11px var(--cond);letter-spacing:.12em;text-transform:uppercase}
+.seg button+button{border-left:1px solid rgba(29,31,32,.2)}
+.seg button.on{background:var(--acc7);color:var(--paper)}
+.dropzone{border:1px dashed rgba(29,31,32,.28);padding:26px;display:flex;flex-direction:column;
+  align-items:center;gap:8px;background:rgba(89,128,166,.04);cursor:pointer;text-align:center}
+.fluxo-passo{display:flex;gap:12px;align-items:flex-start}
+.fluxo-passo .marca{display:flex;flex-direction:column;align-items:center;flex:none;width:14px}
+.fluxo-passo .quad{width:12px;height:12px;border:1px solid rgba(29,31,32,.35)}
+.fluxo-passo .linha{width:1px;flex:1;min-height:22px;background:rgba(29,31,32,.18)}
+.chip-arq{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid var(--div-forte);
+  font:400 11px var(--body);background:var(--paper);max-width:100%}
+.chip-arq span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip-arq button{border:0;background:transparent;cursor:pointer;color:var(--tx-2);font-size:13px;line-height:1;padding:0}
+
+/* — gaveta — */
+#backdrop{position:fixed;inset:0;background:rgba(29,31,32,.34);z-index:40}
+#gaveta{position:fixed;top:0;right:0;bottom:0;width:clamp(340px,40%,470px);background:var(--paper);
+  border-left:1px solid rgba(29,31,32,.2);box-shadow:-20px 0 54px rgba(29,31,32,.24);z-index:41;
+  display:flex;flex-direction:column;overflow-y:auto;animation:entra .16s ease-out}
+@keyframes entra{from{transform:translateX(24px)}to{transform:none}}
+@media (max-width:520px){#gaveta{width:100%}}
+.g-resumo{padding:18px 22px 16px;border-bottom:1px solid var(--div-forte);background:var(--tint-bloco)}
+.g-meta{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:12px;font:400 11px var(--body);color:var(--tx-2)}
+.g-secao{padding:16px 22px;border-bottom:1px solid var(--div-forte)}
+.arquivo{display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid rgba(29,31,32,.18);
+  background:var(--paper);text-decoration:none;color:inherit}
+.arquivo:hover{background:var(--tint-hover)}
+.arquivo .nome{font:400 12px var(--body);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arquivo .meta{font:400 10.5px var(--body);color:var(--tx-2);flex:none}
+.abas{display:flex;border-bottom:1px solid var(--div-forte)}
+/* Sao QUATRO abas agora: numa gaveta de 340px cada uma fica com ~85px, e
+   "PAGAMENTOS" no corpo antigo (11px + .14em) estourava. Um ponto e meio a
+   menos de corpo e um pouco menos de espacamento resolvem sem mudar o tom. */
+.abas button{flex:1;min-width:0;background:transparent;color:var(--tx-3);border:0;
+  border-bottom:2px solid transparent;cursor:pointer;height:40px;white-space:nowrap;
+  font:600 10.5px var(--cond);letter-spacing:.1em;text-transform:uppercase}
+.abas button+button{border-left:1px solid rgba(29,31,32,.12)}
+.abas button.on{background:var(--paper);color:var(--ink);border-bottom-color:var(--acc7)}
+.form-acao{border:1px solid rgba(89,128,166,.5);background:var(--paper);padding:14px 15px;
+  display:flex;flex-direction:column;gap:12px}
+.dica{display:flex;gap:7px;align-items:flex-start;font:400 11px/1.45 var(--body);color:var(--tx-2)}
+
+/* — chat — */
+/* O chat tem altura propria: piso para caber conversa, teto para nao empurrar
+   os arquivos e as acoes de admin para fora da tela. Sem `flex:1` de proposito
+   — ver o comentario em abaChatHTML. */
+.bloco-chat{display:flex;flex-direction:column;flex:none}
+#chat-lista{min-height:240px;max-height:52vh;padding:18px 20px;display:flex;
+  flex-direction:column;gap:14px;overflow-y:auto}
+.msg{display:flex;flex-direction:column;gap:4px}
+.msg .autoria{display:flex;align-items:baseline;gap:7px;font:400 9.5px var(--body);letter-spacing:.12em;
+  text-transform:uppercase;color:rgba(29,31,32,.55)}
+.msg .autoria b{font-weight:600}
+.msg .bolha{max-width:88%;padding:10px 12px;border:1px solid;font:400 12.5px/1.5 var(--body);
+  white-space:pre-wrap;word-break:break-word}
+.msg.eu{align-items:flex-end}
+.msg.eu .bolha{background:rgba(89,128,166,.14);border-color:rgba(89,128,166,.45)}
+.msg.eu .autoria b{color:var(--acc7)}
+.msg.outro{align-items:flex-start}
+.msg.outro .bolha{background:var(--paper);border-color:rgba(29,31,32,.2)}
+.msg.sistema{align-items:center}
+.msg.sistema .bolha{background:transparent;border-color:rgba(29,31,32,.28);color:rgba(29,31,32,.72)}
+/* Sem position:sticky: agora existem blocos DEPOIS do chat (arquivos e as acoes
+   de admin), e um composer grudado no fim da area visivel passaria por cima
+   deles. Ele fica no pe da propria area de chat, que ja tem altura propria — a
+   lista rola dentro dela, nunca a pagina. */
+#composer{border-top:1px solid var(--div-forte);padding:12px 16px;background:var(--paper)}
+
+/* — checklist — */
+.check-item{display:flex;align-items:center;gap:11px;padding:13px 0;border-bottom:1px solid var(--div-fraco)}
+.check-box{width:16px;height:16px;flex:none;border:1px solid rgba(29,31,32,.35);background:transparent;
+  display:flex;align-items:center;justify-content:center;color:var(--paper);font:600 10px var(--body);padding:0}
+.check-box.on{border-color:var(--acc7);background:var(--acc7)}
+.check-box.pode{cursor:pointer}
+.check-item .t{font:400 12.5px var(--body)}
+.check-item .s{font:400 10.5px var(--body);color:var(--tx-2)}
+
+/* — pagamentos — */
+.pag{padding:12px 13px;gap:5px}
+.pag .l1{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.pag .tipo{font:600 12px var(--cond);letter-spacing:.12em;text-transform:uppercase}
+.pag .valor{font:600 16px var(--cond)}
+.pag .desc{font:400 11.5px/1.45 var(--body);color:rgba(29,31,32,.68)}
+.pag .rodape{display:flex;align-items:center;gap:8px;margin-top:3px;padding-top:8px;
+  border-top:1px solid var(--div-fraco);font:400 10.5px var(--body);color:var(--tx-2)}
+
+/* — sobreposicoes de servico (login, aviso, admin, carregando) — */
+.overlay{position:fixed;inset:0;background:rgba(29,31,32,.34);z-index:60;display:flex;
+  align-items:center;justify-content:center;padding:20px}
+.caixa{background:var(--paper);border:1px solid rgba(29,31,32,.2);box-shadow:0 20px 54px rgba(29,31,32,.24);
+  width:100%;max-width:420px;padding:26px 26px 22px;display:flex;flex-direction:column;gap:14px}
+.caixa h3{font-size:21px}
+#carregando{position:fixed;inset:0;background:rgba(242,242,243,.86);z-index:80;display:flex;
+  align-items:center;justify-content:center;flex-direction:column;gap:10px;
+  font:400 12.5px var(--body);color:var(--tx-3);text-align:center;padding:20px}
+.giro{width:22px;height:22px;border:2px solid rgba(29,31,32,.2);border-top-color:var(--acc7);
+  border-radius:50%;animation:gira .8s linear infinite}
+@keyframes gira{to{transform:rotate(360deg)}}
+.aviso-msg{font:400 12.5px/1.5 var(--body);color:var(--tx-3);white-space:pre-wrap}
+/* A caixa de aviso tambem hospeda o formulario "Corrigir dados". Sem teto de
+   altura, numa tela baixa os botoes de salvar ficavam fora da vista. */
+#modal-aviso .caixa{max-height:calc(100vh - 40px);overflow-y:auto}
+.status-msg{font:400 12px/1.45 var(--body);padding:9px 11px;border:1px solid}
+.status-msg.info{border-color:rgba(89,128,166,.45);background:rgba(89,128,166,.1);color:var(--acc9)}
+.status-msg.ok{border-color:rgba(89,128,166,.45);background:rgba(89,128,166,.14);color:var(--acc9)}
+.status-msg.erro{border-color:rgba(29,31,32,.35);background:rgba(29,31,32,.06);color:var(--ink)}
+[hidden]{display:none !important}
+</style>
+</head>
+<body>
+
+<!-- ====================== LOGIN ====================== -->
+<div id="login-screen" class="overlay" style="z-index:70">
+  <div class="caixa">
+    <div>
+      <div class="kicker">Jurídico · Cobra Brasil</div>
+      <h3 style="margin-top:6px">Controle de Despachante</h3>
+    </div>
+    <div class="field"><label>E-mail</label><input class="input" id="login-email" type="email" autocomplete="username"></div>
+    <div class="field"><label>Senha</label><input class="input" id="login-password" type="password" autocomplete="current-password"></div>
+    <div id="login-status" class="status-msg info" hidden></div>
+    <button class="btn btn-primary btn-cta" id="btn-request-login" style="height:38px">Entrar no sistema</button>
+  </div>
+</div>
+
+<!-- ====================== APP ====================== -->
+<div id="app" hidden style="display:flex;flex-direction:column;min-height:100vh;min-width:0">
+
+  <div id="topo">
+    <div id="marca">
+      <span class="m1">Jurídico</span>
+      <span class="barra"></span>
+      <span class="m2">Controle de Despachante</span>
+    </div>
+    <div id="acoes-topo">
+      <input class="input" id="busca" placeholder="Pesquisar pedido, empresa, protocolo ou pendência" autocomplete="off">
+      <button class="btn btn-primary btn-cta" id="btn-novo">Cadastrar pedido</button>
+      <!-- Botao de administracao. A primeira versao era so um icone que eu
+           desenhei como circulo + raios: virou um SOL, e ninguem adivinhou o
+           que fazia. Agora e a engrenagem de verdade do Lucide E vem com
+           rotulo. Icone sozinho so funciona quando o desenho e obvio. -->
+      <button class="btn btn-secondary" id="btn-admin" title="Administração"
+        style="font-size:12px;letter-spacing:.06em;text-transform:uppercase" hidden>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        Admin
+      </button>
+      <button class="btn btn-ghost" id="btn-sair" title="Sair" style="font-size:12px">Sair</button>
+    </div>
+  </div>
+
+  <div id="quadro"></div>
+  <div id="novo" hidden></div>
+</div>
+
+<!-- ====================== GAVETA ====================== -->
+<div id="backdrop" hidden></div>
+<div id="gaveta" hidden></div>
+
+<!-- ====================== SERVICO ====================== -->
+<div id="modal-aviso" class="overlay" hidden>
+  <div class="caixa" style="max-width:400px">
+    <h3 id="aviso-titulo">Aviso</h3>
+    <div class="aviso-msg" id="aviso-texto"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-secondary" id="aviso-cancelar" hidden>Cancelar</button>
+      <button class="btn btn-primary" id="aviso-ok">Entendi</button>
+    </div>
+  </div>
+</div>
+
+<div id="modal-admin" class="overlay" hidden>
+  <div class="caixa" style="max-width:560px;max-height:calc(100vh - 40px);overflow-y:auto">
+    <div style="display:flex;align-items:center;gap:10px">
+      <h3 style="flex:1">Administração</h3>
+      <button class="btn btn-ghost btn-icon" id="admin-fechar" style="width:28px;height:28px">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+
+    <!-- O que alimenta o site. Cada aba da planilha e uma "variavel" do
+         sistema: mexer ali e mexer no que a tela mostra. -->
+    <div>
+      <div class="kicker" style="margin-bottom:8px">Planilha — o que alimenta o site</div>
+      <div id="admin-abas" style="display:flex;flex-direction:column;gap:6px">
+        <div class="vazio">Carregando os atalhos…</div>
+      </div>
+      <div class="dica" style="margin-top:8px">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#416180" stroke-width="1.5" stroke-linecap="round" style="flex:none;margin-top:1px"><circle cx="12" cy="12" r="9"/><path d="M12 8v.5M12 11v5"/></svg>
+        <span>O que você mudar ali aparece no site na próxima atualização da tela. Cuidado com o cabeçalho (linha 1): o sistema depende dos nomes das colunas.</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="kicker" style="margin-bottom:8px">Bastidores</div>
+      <div id="admin-bastidores" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+
+    <div class="field">
+      <label>E-mails de notificação (um por linha)</label>
+      <textarea class="input" id="admin-emails" rows="4" style="min-height:84px"></textarea>
+    </div>
+    <div id="admin-status" class="status-msg info" hidden></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-primary" id="admin-salvar">Salvar e-mails</button>
+    </div>
+  </div>
+</div>
+
+<div id="carregando" hidden><div class="giro"></div><div id="carregando-texto">Carregando…</div></div>
+
+<input type="file" id="file-oculto" multiple hidden>
+
+<script>
+/* ==========================================================================
+ * CONTROLE DE DESPACHANTE — TELA NOVA (V4.2)
+ *
+ * O quadro por etapa desenhado no handoff "Frontend industrial provisorio".
+ * Sobe EM PARALELO a V4.1: so quem abre com ?ui=novo cai aqui (ver doGet).
+ *
+ * Fala com o MESMO motor de sempre (Codigo.gs) — nenhum dado novo alem do 3o
+ * check do checklist. O vocabulario da tela e o do design ("pedido", "ato
+ * societario", "Juridico"); o que a planilha guarda continua com os nomes
+ * antigos ("ata", "Cobra", "Em Protocolo"), porque renomear dado historico e
+ * risco sem retorno — a traducao mora aqui embaixo, num lugar so.
+ * ========================================================================== */
+
+// Token do magic link, quando a URL trouxe um.
+const URL_TOKEN = ("<?= urlToken ?>" || "").trim();
+
+/* --------------------------------------------------------------------------
+ * 1. DOMINIO — a traducao entre a planilha e a tela
+ * ------------------------------------------------------------------------ */
+
+// A etapa GRAVADA na planilha e a chave. Nunca inverter isso: o dado manda.
+const ETAPAS = {
+  'Enviado':      { coluna:0, rotulo:'A protocolar', acao:'protocolar' },
+  'Solicitado':   { coluna:0, rotulo:'Solicitado',   acao:'devolver'   },
+  'Em Protocolo': { coluna:1, rotulo:'Na Junta',     acao:'registrar'  },
+  'Registrada':   { coluna:2, rotulo:'Registrado',   acao:'concluir'   },
+  'Devolvido':    { coluna:2, rotulo:'Devolvido',    acao:'concluir'   }
+};
+const ETAPA_CONCLUIDO = { coluna:3, rotulo:'Concluído', acao:null };
+// O campo `proximo` ('PROTOCOLAR', 'CONFERIR E ARQUIVAR', 'ENCERRADO') saiu daqui
+// junto com o rodape do cartao que o exibia: a coluna ja diz em que etapa o
+// pedido esta, e repetir isso em cada cartao so gastava a linha que hoje mostra
+// o que de fato falta. O rotulo do botao de acao continua em ACOES[].rotulo.
+
+const COLUNAS = ['A protocolar', 'Na Junta', 'Conferência', 'Concluído'];
+
+// Cores das tags de status (tokens do handoff).
+const CHIP = {
+  'A protocolar': { bg:'transparent', fg:'#416180', bd:'#5980a6' },
+  'Solicitado':   { bg:'transparent', fg:'#416180', bd:'#5980a6' },
+  'Na Junta':     { bg:'#d6ebff',     fg:'#2c455d', bd:'#b5d9fd' },
+  'Registrado':   { bg:'#416180',     fg:'#f2f2f3', bd:'#416180' },
+  'Devolvido':    { bg:'#416180',     fg:'#f2f2f3', bd:'#416180' },
+  'Concluído':    { bg:'#1d2d3d',     fg:'#f2f2f3', bd:'#1d2d3d' }
+};
+
+// As acoes de etapa, exatamente como o spec/fluxos.md descreve.
+const ACOES = {
+  protocolar: {
+    rotulo:'PROTOCOLAR', titulo:'Registrar protocolo na Jucerja',
+    ajuda:'O número de protocolo é obrigatório para mover o pedido para Na Junta.',
+    protocolo:true, data:true, anexo:null, destino:'Em Protocolo'
+  },
+  registrar: {
+    rotulo:'REGISTRAR', titulo:'Confirmar registro na Junta',
+    ajuda:'Informe a data do registro e anexe a via registrada.',
+    protocolo:false, data:true, anexo:'Ata registrada', destino:'Registrada'
+  },
+  devolver: {
+    rotulo:'DEVOLVER DOCUMENTO', titulo:'Devolver documento ao jurídico',
+    ajuda:'Documento não passa pela Junta: informe a data da devolução e o arquivo.',
+    protocolo:false, data:true, anexo:'Documento digitalizado', destino:'Devolvido'
+  },
+  concluir: {
+    rotulo:'CONCLUIR PEDIDO', titulo:'Concluir pedido',
+    ajuda:'Checklist completo — o pedido vai para Concluído.',
+    protocolo:false, data:false, anexo:null, destino:'Concluído'
+  }
+};
+
+const TIPOS_PAGAMENTO = ['Reembolso', 'Serviço', 'Taxa / DARE', 'Cartório'];
+
+// Prazos da coluna "A protocolar", em dias corridos desde o envio.
+// Ate DIAS_NOVO (exclusive) o pedido e "Novo"; de DIAS_ATRASO em diante, sem ter
+// saido da coluna, e "Atrasado". Os dois nunca coincidem.
+var DIAS_NOVO   = 2;
+var DIAS_ATRASO = 5;
+
+const DOCUMENTOS = ['Certidão simplificada', 'Certidão de inteiro teor',
+  'Busca de atos e alterações', 'Procuração pública', 'Cópia autenticada de ato'];
+
+const EMPRESAS = [
+  "OUTRA",
+  "ARAÇUAI 1 GD PARQUE SOLAR S.A",
+  "ATALAIA TERMINAIS MARITIMOS S.A.",
+  "BELMONTE 1.1 PARQUE SOLAR S.A.",
+  "BELMONTE 1.2 PARQUE SOLAR S.A.",
+  "BELMONTE 1.3 PARQUE SOLAR S.A.",
+  "BELMONTE 1.4 PARQUE SOLAR S.A.",
+  "BELMONTE 2.1 PARQUE SOLAR S.A.",
+  "BELMONTE 2.2 PARQUE SOLAR S.A.",
+  "BELMONTE 2.3 PARQUE SOLAR S.A.",
+  "BELMONTE 2.4 PARQUE SOLAR S.A.",
+  "BELMONTE 2.5 PARQUE SOLAR S.A.",
+  "BELMONTE 2.6 PARQUE SOLAR S.A.",
+  "BELMONTE I PARQUE SOLAR S.A",
+  "BELMONTE II PARQUE SOLAR S.A",
+  "BELMONTE SOLAR HOLDING S.A",
+  "BOICAÚVA 1 GD PARQUE SOLAR S.A",
+  "CARMO ENERGY S.A",
+  "COBRA BRASIL CONSTRUÇÕES S.A",
+  "COBRA BRASIL SERVIÇOS, COMUNICAÇÕES E ENERGIA S.A.",
+  "COBRA INSTALAÇÕES E SERVIÇOS LTDA",
+  "CRISTINO CASTRO SOLAR HOLDING S.A.",
+  "ELEIA COMERCIALIZADORA DE ENERGIA S.A",
+  "ENGEMISA ENGENHARIA LIMITADA",
+  "ESB - CEARÁ S.A.",
+  "ESB ENERGIA E SUSTENTABILIDADE DO BRASIL S.A",
+  "ESB - NORDESTE S.A.",
+  "ESB - PECÉM S.A.",
+  "ETRABRAS MOBILIDADE E ENERGIA LTDA",
+  "LINS 01 ENERGIA SPE S.A.",
+  "LINS 02 ENERGIA SPE S.A.",
+  "LINS 03 ENERGIA SPE S.A.",
+  "LINS 04 ENERGIA SPE S.A.",
+  "LINS 05 ENERGIA SPE S.A.",
+  "LINS 06 ENERGIA SPE S.A.",
+  "LINS 07 ENERGIA SPE S.A.",
+  "LINS 08 ENERGIA SPE S.A.",
+  "MASA DO BRASIL MANUTENCAO E MONTAGENS LTDA",
+  "MIRABELA 1 GD PARQUE SOLAR S.A.",
+  "MUNDO NOVO SOLAR HOLDING S.A.",
+  "PANORAMA 01 ENERGIA SPE S.A.",
+  "PANORAMA 02 ENERGIA SPE S.A.",
+  "PANORAMA 03 ENERGIA SPE S.A.",
+  "PIRAPORA 1 GD PARQUE SOLAR S.A",
+  "RAIOS DO PARNAÍBA SOLAR HOLDING S.A.",
+  "SERMICRO DO BRASIL SERVICOS E INFORMATICA LTDA",
+  "TAIOBERAS 1 GD PARQUE SOLAR S.A.",
+  "TAIOBERAS 2 GD PARQUE SOLAR S.A",
+  "TECNICAS DE DESALINIZACION DE AGUAS, S. A. (SUCURSAL)",
+  "TRINDADE 1 PARQUE FOTOVOLTAICO S.A.",
+  "TRINDADE 2 PARQUE FOTOVOLTAICO S.A.",
+  "TRINDADE 3 PARQUE FOTOVOLTAICO S.A.",
+  "TRINDADE 4 PARQUE FOTOVOLTAICO S.A.",
+  "TRINDADE 5 PARQUE FOTOVOLTAICO S.A.",
+  "TRINDADE 6 PARQUE FOTOVOLTAICO S.A.",
+  "TRINDADE SOLAR HOLDING S.A.",
+  "VARJAO DE MINAS 1 GD PARQUE SOLAR S.A.",
+  "XADREZ RENOVAVEIS HOLDING S.A."
+];
+
+const PEDACO_UPLOAD = 8 * 1024 * 1024;   // 8 MB por pedaco, igual a V2.2
+
+/* --------------------------------------------------------------------------
+ * 2. ESTADO
+ * ------------------------------------------------------------------------ */
+
+const state = {
+  ambienteGAS: false,
+  role: 'admin',
+  navi: false,
+  email: '',
+  // O token da sessao VALIDADA. Uma fonte so: quem precisa dele (Admin, Sair)
+  // le daqui, nunca direto do storage. Ver checarAutenticacao.
+  token: '',
+
+  page: 'quadro',          // 'quadro' | 'novo'
+  q: '',                   // busca
+  sel: null,               // id do pedido aberto na gaveta
+  tab: 'chat',             // 'chat' | 'pag' | 'check' | 'arq'
+  actionOpen: false,
+
+  pedidos: [],             // o que veio do getAtas
+  resumoChats: {},         // { id: {total, desp:[ms]} } — alimenta o badge
+  chat: [],                // chat do pedido aberto
+  pagamentos: [],          // pedidos de pagamento do pedido aberto
+
+  // formulario de acao de etapa
+  fProt: '', fData: '', fAnexo: null,
+  // formulario de pagamento
+  pTipo: TIPOS_PAGAMENTO[0], pValor: '', pDesc: '', pComp: null,
+  // composer do chat
+  draft: '', draftAnexos: [],
+  // cadastro
+  fTipo: 'ato', fEmpresa: EMPRESAS[1], fDesc: '', fDoc: DOCUMENTOS[0],
+  fPrazo: '', fNota: '', fArquivos: []
+};
+
+/* --------------------------------------------------------------------------
+ * 3. UTILIDADES
+ * ------------------------------------------------------------------------ */
+
+const $ = (id) => document.getElementById(id);
+
+/** Escapa antes de injetar em HTML. Todo dado aqui vem da planilha — ninguem
+ *  digita HTML de proposito, mas um "&" numa razao social ja quebra a tela. */
+function esc(v) {
+  return String(v === null || v === undefined ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/** Contorna o bloqueio de storage em iframe de terceiros (Chrome). */
+const safeStorage = {
+  getItem(k) { try { return localStorage.getItem(k); } catch (e) { return this['_' + k] || null; } },
+  setItem(k, v) { try { localStorage.setItem(k, v); } catch (e) { this['_' + k] = v; } }
+};
+
+/** '2026-09-02' -> '02/09/2026'. Aceita ja formatado e devolve como veio. */
+function dataBR(iso) {
+  const s = String(iso || '').trim();
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? (m[3] + '/' + m[2] + '/' + m[1]) : s;
+}
+function hojeISO() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+/** Dias corridos desde o envio. Sem data de envio, devolve 0. */
+function diasCorridos(iso) {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return 0;
+  const envio = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const hoje = new Date();
+  return Math.max(0, Math.floor((hoje - envio) / 86400000));
+}
+const BRL = (v) => 'R$ ' + (Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/** '1.234,56' e '1234.56' viram 1234.56. */
+function paraNumero(txt) {
+  const s = String(txt || '').trim().replace(/[^\d.,-]/g, '');
+  if (!s) return 0;
+  const n = s.indexOf(',') > -1 ? s.replace(/\./g, '').replace(',', '.') : s;
+  return Number(n) || 0;
+}
+const curto = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n).trim() + '…' : s; };
+function tamanhoLegivel(bytes) {
+  if (bytes >= 1024 * 1024) return Math.round(bytes / (1024 * 1024)) + ' MB';
+  return Math.max(1, Math.round(bytes / 1024)) + ' KB';
+}
+
+// Icones Lucide usados no handoff, como string (stroke-width 1.5).
+const ICO = {
+  arquivo: (n) => `<svg width="${n}" height="${n}" viewBox="0 0 24 24" fill="none" stroke="#416180" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M14 3v5h5M6 3h9l5 5v13H6z"/></svg>`,
+  pasta:   (n) => `<svg width="${n}" height="${n}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h6l2 2h10v11H3z"/></svg>`,
+  clipe:   (n) => `<svg width="${n}" height="${n}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.5 12.5 21a4.95 4.95 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7L10 18.9"/></svg>`,
+  copiar:  (n) => `<svg width="${n}" height="${n}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9h11v11H9zM4 15V4h11"/></svg>`,
+  fechar:  (n) => `<svg width="${n}" height="${n}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>`,
+  info:    (n) => `<svg width="${n}" height="${n}" viewBox="0 0 24 24" fill="none" stroke="#416180" stroke-width="1.5" stroke-linecap="round" style="flex:none;margin-top:1px"><circle cx="12" cy="12" r="9"/><path d="M12 8v.5M12 11v5"/></svg>`,
+  balao:   (n) => `<svg width="${n}" height="${n}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 5h16v11H9l-5 4z"/></svg>`,
+  upload:  (n) => `<svg width="${n}" height="${n}" viewBox="0 0 24 24" fill="none" stroke="#416180" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m-5 5 5-5 5 5M4 17v3h16v-3"/></svg>`
+};
+
+/* --------------------------------------------------------------------------
+ * 4. AVISAR / CONFIRMAR — dentro da tela, nunca alert()/confirm()
+ * ------------------------------------------------------------------------
+ * O app roda dentro de um iframe de outra origem (Pages -> Apps Script ->
+ * googleusercontent). O Chrome IGNORA alert/confirm/prompt ali: o confirm()
+ * devolve false calado em ~8 ms, sem caixa nenhuma, e o velho
+ * `if (!confirm(...)) return;` lia isso como "o usuario cancelou". Foi o bug
+ * da V2.1.2. Por isso aqui nao existe uma unica chamada a essas tres.
+ */
+let avisoResolver = null;
+
+function fecharAviso(resposta) {
+  $('modal-aviso').hidden = true;
+  const r = avisoResolver; avisoResolver = null;
+  if (r) r(resposta);
+}
+function avisar(texto, titulo) {
+  $('aviso-titulo').textContent = titulo || 'Aviso';
+  $('aviso-texto').style.whiteSpace = '';   // de volta ao pre-wrap da classe
+  $('aviso-texto').textContent = String(texto || '');
+  $('aviso-cancelar').hidden = true;
+  $('aviso-ok').textContent = 'Entendi';
+  $('modal-aviso').hidden = false;
+  return new Promise((resolve) => { avisoResolver = resolve; });
+}
+function confirmar(texto, titulo) {
+  $('aviso-titulo').textContent = titulo || 'Confirmar';
+  $('aviso-texto').style.whiteSpace = '';   // de volta ao pre-wrap da classe
+  $('aviso-texto').textContent = String(texto || '');
+  $('aviso-cancelar').hidden = false;
+  $('aviso-ok').textContent = 'Confirmar';
+  $('modal-aviso').hidden = false;
+  return new Promise((resolve) => { avisoResolver = resolve; });
+}
+
+function mostrarCarregando(texto) {
+  $('carregando-texto').textContent = texto || 'Carregando…';
+  $('carregando').hidden = false;
+}
+function esconderCarregando() { $('carregando').hidden = true; }
+
+/* --------------------------------------------------------------------------
+ * 5. CHAMADAS AO SERVIDOR — toda uma so porta, e com prazo
+ * ------------------------------------------------------------------------
+ * Regra da casa: o google.script.run cru pode morrer sem chamar handler
+ * nenhum, e uma promessa sem prazo deixa a tela girando para sempre.
+ */
+function chamarServidor(funcao, args, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    if (!state.ambienteGAS) { reject(new Error('Sem servidor (modo local).')); return; }
+    let terminou = false;
+    const relogio = setTimeout(() => {
+      if (terminou) return;
+      terminou = true;
+      reject(new Error('O servidor do Google não respondeu (' + funcao + '). Verifique a internet e tente de novo.'));
+    }, timeoutMs || 120000);
+
+    const umaVezSo = (fn) => (valor) => {
+      if (terminou) return;
+      terminou = true;
+      clearTimeout(relogio);
+      try { fn(valor); } catch (e) { reject(e); }
+    };
+
+    const runner = google.script.run
+      .withSuccessHandler(umaVezSo((res) => {
+        if (res && res.error) reject(new Error(res.error));
+        else resolve(res);
+      }))
+      .withFailureHandler(umaVezSo((err) => {
+        reject(err instanceof Error ? err : new Error((err && err.message) || String(err)));
+      }));
+
+    // Chamado no proprio runner (e nao com apply(null)) para nao perder o
+    // "this" que a API do google.script.run usa por dentro.
+    runner[funcao].apply(runner, args || []);
+  });
+}
+
+/** Erro na tela, sempre — dentro do iframe nao da para confiar em mais nada. */
+function tratarErro(e) {
+  esconderCarregando();
+  avisar((e && e.message) || String(e), 'Não deu certo');
+}
+
+/* --------------------------------------------------------------------------
+ * 6. UPLOAD DIRETO PARA O DRIVE
+ * ------------------------------------------------------------------------
+ * Os bytes NAO passam pelo Apps Script: a via chancelada volta escaneada da
+ * Junta com dezenas de MB e o Apps Script morre tentando carregar isso na
+ * memoria. O servidor so entra nas pontas — prepara a pasta e libera o link.
+ * (V2.2; nao mexer sem rodar `node testes/upload.test.js`.)
+ */
+async function buscarComPrazo(url, opcoes, ms) {
+  const abortador = new AbortController();
+  const relogio = setTimeout(() => abortador.abort(), ms || 120000);
+  try {
+    return await fetch(url, Object.assign({}, opcoes, { signal: abortador.signal }));
+  } catch (e) {
+    if (e && e.name === 'AbortError') throw new Error('O Drive não respondeu a tempo. Verifique a internet e tente de novo.');
+    throw new Error('Não foi possível falar com o Drive: ' + ((e && e.message) || e));
+  } finally {
+    clearTimeout(relogio);
+  }
+}
+
+async function subirArquivo(file, pedidoId, empresa, descricao) {
+  if (!file) throw new Error('Nenhum arquivo escolhido.');
+  const filename = file.name;
+
+  mostrarCarregando(`Preparando o envio de "${filename}"…`);
+  const prep = await chamarServidor('prepararUploadDireto', [pedidoId, empresa, descricao]);
+  if (!prep || !prep.token || !prep.folderId) {
+    throw new Error('O servidor não devolveu a autorização para subir o arquivo.');
+  }
+
+  const abertura = await buscarComPrazo(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true',
+    {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + prep.token, 'Content-Type': 'application/json; charset=UTF-8' },
+      body: JSON.stringify({ name: filename, parents: [prep.folderId], mimeType: file.type || 'application/pdf' })
+    }
+  );
+  if (!abertura.ok) throw new Error(`O Drive recusou o envio de "${filename}" (código ${abertura.status}).`);
+
+  // O endereco da sessao vem no cabecalho Location — e o Google so o expoe ao
+  // nosso dominio se as regras de CORS deixarem. Se vier vazio, vai de uma
+  // tacada so: perde-se a porcentagem e o retomar, nunca o envio.
+  const enderecoSessao = abertura.headers.get('Location');
+  if (!enderecoSessao) return await subirDeUmaVez(file, filename, prep);
+
+  let enviado = 0, dadosFinais = null;
+  while (enviado < file.size) {
+    const fim = Math.min(enviado + PEDACO_UPLOAD, file.size);
+    mostrarCarregando(`Enviando "${filename}" — ${Math.round((enviado / file.size) * 100)}% de ${tamanhoLegivel(file.size)}`);
+
+    const resposta = await buscarComPrazo(enderecoSessao, {
+      method: 'PUT',
+      headers: { 'Content-Range': `bytes ${enviado}-${fim - 1}/${file.size}` },
+      body: file.slice(enviado, fim)
+    }, 300000);
+
+    if (resposta.status === 308) {
+      const aceito = resposta.headers.get('Range');
+      const ate = aceito && aceito.match(/bytes=0-(\d+)/);
+      enviado = ate ? Number(ate[1]) + 1 : fim;
+    } else if (resposta.ok) {
+      dadosFinais = await resposta.json();
+      enviado = file.size;
+    } else {
+      throw new Error(`O envio de "${filename}" falhou no Drive (código ${resposta.status}).`);
+    }
+  }
+  if (!dadosFinais || !dadosFinais.id) throw new Error(`O Drive não confirmou a gravação de "${filename}".`);
+
+  mostrarCarregando(`Finalizando "${filename}"…`);
+  const res = await chamarServidor('finalizarUploadDireto', [dadosFinais.id]);
+  if (!res || !res.url) throw new Error(`O arquivo "${filename}" subiu, mas o Google não devolveu o link.`);
+  return { nome: res.nome || filename, url: res.url };
+}
+
+async function subirDeUmaVez(file, filename, prep) {
+  const limite = 'ped' + Math.random().toString(36).slice(2) + Date.now();
+  const tipo = file.type || 'application/pdf';
+  const meta = JSON.stringify({ name: filename, parents: [prep.folderId], mimeType: tipo });
+
+  const corpo = new Blob([
+    `--${limite}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n`,
+    `--${limite}\r\nContent-Type: ${tipo}\r\n\r\n`,
+    file,
+    `\r\n--${limite}--`
+  ]);
+
+  mostrarCarregando(`Enviando "${filename}" (${tamanhoLegivel(file.size)}) — isso pode demorar…`);
+  const resposta = await buscarComPrazo(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true',
+    { method:'POST', headers:{ 'Authorization':'Bearer ' + prep.token, 'Content-Type':`multipart/related; boundary=${limite}` }, body: corpo },
+    600000
+  );
+  if (!resposta.ok) throw new Error(`O envio de "${filename}" falhou no Drive (código ${resposta.status}).`);
+  const dados = await resposta.json();
+  if (!dados || !dados.id) throw new Error(`O Drive não confirmou a gravação de "${filename}".`);
+
+  mostrarCarregando(`Finalizando "${filename}"…`);
+  const res = await chamarServidor('finalizarUploadDireto', [dados.id]);
+  if (!res || !res.url) throw new Error(`O arquivo "${filename}" subiu, mas o Google não devolveu o link.`);
+  return { nome: res.nome || filename, url: res.url };
+}
+
+/** Escolhe arquivos sem depender de um <input> por lugar da tela. */
+function escolherArquivos(multiplo) {
+  return new Promise((resolve) => {
+    const inp = $('file-oculto');
+    inp.multiple = !!multiplo;
+    inp.value = '';
+    const aoMudar = () => {
+      inp.removeEventListener('change', aoMudar);
+      resolve(Array.prototype.slice.call(inp.files || []));
+    };
+    inp.addEventListener('change', aoMudar);
+    inp.click();
+  });
+}
+
+/* --------------------------------------------------------------------------
+ * 7. DERIVADOS DO PEDIDO
+ * ------------------------------------------------------------------------ */
+
+/**
+ * A etapa de um pedido.
+ *
+ * O cartao so cai na coluna "Concluido" quando as DUAS coisas valem: o status
+ * gravado diz 'Concluido' E os TRES itens do checklist estao marcados. Uma so
+ * nao basta, nos dois sentidos:
+ *
+ * - so o status: e o caso do registro antigo, gravado como 'Concluido' antes de
+ *   os checks existirem. Mostra-lo como concluido seria afirmar uma conferencia
+ *   que ninguem fez.
+ * - so os checks: quem conclui aqui e o botao, e botao que nao muda dado e
+ *   teatro.
+ *
+ * Consequencia: desmarcar um check devolve o cartao para a etapa de entrega,
+ * mesmo com 'Concluido' na planilha — e o certo, porque a conferencia deixou de
+ * estar completa. O status gravado nao se perde; volta a valer sozinho quando o
+ * checklist fechar de novo.
+ */
+function etapaDe(p) {
+  if (p.concluidoExplicito && checklistCompleto(p)) return ETAPA_CONCLUIDO;
+  return ETAPAS[p.status] || (p.tipo === 'Documento' ? ETAPAS['Solicitado'] : ETAPAS['Enviado']);
+}
+
+const ehDocumento = (p) => p.tipo === 'Documento';
+const rotuloTipo  = (p) => ehDocumento(p) ? 'Documento' : 'Ato societário';
+
+/**
+ * Com quem esta a vez de agir.
+ *
+ * Diz "Cobra", e nao "Juridico" como o prototipo propunha, para bater com a
+ * etiqueta do cartao: o mesmo fato nao pode ter dois nomes na mesma tela.
+ * Enquanto o pedido esta na Junta, quem manda no relogio e a Junta — mas a bola
+ * (de quem se espera acao) continua sendo de alguem, e e isso que o cartao
+ * mostra.
+ */
+function aguardandoDe(p) {
+  if (etapaDe(p) === ETAPA_CONCLUIDO) return '—';
+  if (p.status === 'Em Protocolo') return 'Junta Comercial';
+  return p.bola === 'Cobra' ? 'Cobra' : 'Despachante';
+}
+
+/** Nao lidas: mensagens do despachante depois da ultima vez que ESTE usuario
+ *  abriu o pedido. A marca vive no navegador — a planilha nao guarda leitura. */
+function chaveLeitura(id) { return 'CD_lido_' + (state.email || 'x') + '_' + id; }
+function naoLidas(id) {
+  const r = state.resumoChats[id];
+  if (!r || !r.desp || !r.desp.length) return 0;
+  const marca = Number(safeStorage.getItem(chaveLeitura(id)) || 0);
+  if (!marca) {
+    // Primeira vez que este usuario ve o pedido: nao inventa um passivo de
+    // mensagens antigas. Marca agora e comeca a contar dali para a frente.
+    safeStorage.setItem(chaveLeitura(id), String(Date.now()));
+    return 0;
+  }
+  return r.desp.filter((t) => t > marca).length;
+}
+function marcarLido(id) { safeStorage.setItem(chaveLeitura(id), String(Date.now())); }
+
+/** Junta tudo que esta pendurado no pedido: colunas de arquivo, anexos do chat
+ *  e comprovantes de pagamento. Dedup por nome. */
+function arquivosDe(p) {
+  const out = [], visto = {};
+  const add = (nome, url, meta) => {
+    if (!nome) return;
+    const k = String(nome).toLowerCase();
+    if (visto[k]) return;
+    visto[k] = 1;
+    out.push({ nome: nome, url: url || '', meta: meta || '' });
+  };
+  add(p.arquivoAssinada, p.urlAssinada, ehDocumento(p) ? 'Solicitação' : 'Via assinada');
+  add(p.arquivoRegistrada, p.urlRegistrada, ehDocumento(p) ? 'Devolvido' : 'Registrada');
+  add(p.arquivoNotaFiscal, p.urlNotaFiscal, 'Nota fiscal');
+  add(p.arquivoComprovante, p.urlComprovante, 'Comprovante');
+  state.chat.forEach((m) => (m.arquivos || []).forEach((a) => add(a.nome, a.url, 'Chat')));
+  state.pagamentos.forEach((x) => (x.arquivos || []).forEach((a) => add(a.nome, a.url, 'Pagamento')));
+  return out;
+}
+
+/** Quem pode mexer em cada item do checklist (mesmas regras de perfil da V4.1). */
+function podeCheck(qual) {
+  if (qual === 'rede')  return state.role === 'admin';
+  if (qual === 'navi')  return !!state.navi;
+  return state.role !== 'despachante';   // e-mail de atualizacao interna
+}
+const checklistCompleto = (p) => !!(p.arquivadoRede && p.pagamentoNavi && p.emailVerificado);
+
+function pedidoPorId(id) {
+  for (let i = 0; i < state.pedidos.length; i++) if (state.pedidos[i].id === id) return state.pedidos[i];
+  return null;
+}
+
+/**
+ * Achata para comparar: so letras e numeros, sem acento, minusculo.
+ *
+ * Espaco e pontuacao somem de vez, em vez de virarem um espaco. A diferenca
+ * importa: com espaco, "E-mail" viraria "e mail" e quem digitasse "email" nao
+ * acharia nada — que foi exatamente o que aconteceu no primeiro teste. Assim
+ * "PECÉM" e "pecem", "E-mail" e "email", e "ESB — PECÉM S.A." responde a
+ * "esb pecem" sem que ninguem tenha de acertar travessao nem ponto.
+ */
+function normalizar(v) {
+  return String(v === null || v === undefined ? '' : v)
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
+}
+
+/**
+ * Busca: empresa, descricao, protocolo, id — e as ETIQUETAS do cartao.
+ *
+ * As etiquetas entram porque sao a unica coisa visivel no quadro que o usuario
+ * nao tinha como filtrar: digitar "navi" lista quem espera a baixa no Navi,
+ * "rede" quem falta arquivar, "pronto" quem so espera o botao, "atrasado" quem
+ * passou do prazo de protocolo.
+ */
+function casaBusca(p) {
+  const q = normalizar(state.q);
+  if (!q) return true;
+  const campos = [p.empresa, p.descricao, p.protocolo, p.id]
+    .concat(etiquetasDe(p).map((t) => t.texto));
+  return campos.some((v) => normalizar(v).indexOf(q) > -1);
+}
+
+/* --------------------------------------------------------------------------
+ * 8. QUADRO
+ * ------------------------------------------------------------------------ */
+
+/**
+ * As etiquetas do cartao. Devolve { texto, tom } — TEXTO, nao HTML, porque quem
+ * consome sao dois: o cartao (que desenha) e a busca (que procura). Vindo do
+ * mesmo lugar, procurar por "navi" acha exatamente os cartoes que exibem "Navi"
+ * — a busca nunca promete algo que a tela nao mostra, nem esconde algo que ela
+ * mostra. Vale igual para "novo" e "atrasado".
+ *
+ * Cada coluna mostra o que so ela precisa dizer:
+ *
+ * - "A protocolar", "Na Junta" e "Conferencia": DE QUEM E A VEZ (Cobra ou
+ *   Despachante), pela coluna Bola. Quem escreve no chat esta devolvendo, entao
+ *   a bola vai para o OUTRO lado: falou o despachante, a etiqueta vira "Cobra",
+ *   e vice-versa. A Conferencia entrou depois: ali ainda corre o debate dos
+ *   pagamentos com o despachante, e a bola continua mudando de lado.
+ *   "A protocolar" mostra tambem o PRAZO — Novo ate DIAS_NOVO, Atrasado a
+ *   partir de DIAS_ATRASO. O cartao ja traz os dias corridos, mas numero exige
+ *   conta; a etiqueta diz direto o que fazer com ele.
+ * - "Conferencia": PENDENCIA. O que ainda falta do checklist, ou "Pronto para
+ *   concluir" quando nao falta nada (some seria pior justo quando o cartao pede
+ *   acao).
+ * - "Concluido": nada. Acabou.
+ *
+ * Nota: o prazo vale para a coluna toda, ata e documento. O pedido de documento
+ * nao tira protocolo, mas fica na mesma fila do despachante e envelhece igual —
+ * "Atrasado" ali quer dizer "parado tempo demais", que e o que interessa.
+ */
+function etiquetasDe(p, etapa) {
+  const e = etapa || etapaDe(p);
+  if (e.coluna === 3) return [];   // Concluido: acabou, nao ha o que dizer
+  const tags = [];
+
+  // Prazo — so na fila do despachante.
+  if (e.coluna === 0) {
+    const dias = diasCorridos(p.dataEnvio);
+    if (dias < DIAS_NOVO)         tags.push({ texto: 'Novo',     tom: 'novo' });
+    else if (dias >= DIAS_ATRASO) tags.push({ texto: 'Atrasado', tom: 'atrasado' });
+  }
+
+  // Checklist — so na Conferencia. Mesma ordem da gaveta: Rede, E-mail, Navi.
+  if (e.coluna === 2) {
+    const falta = [
+      !p.arquivadoRede   && { texto: 'Rede',   tom: 'rede' },
+      !p.emailVerificado && { texto: 'E-mail', tom: 'email' },
+      !p.pagamentoNavi   && { texto: 'Navi',   tom: 'navi' }
+    ].filter(Boolean);
+    if (falta.length) tags.push.apply(tags, falta);
+    else tags.push({ texto: 'Pronto para concluir', tom: 'pronto' });
+  }
+
+  // De quem e a vez — em toda coluna em aberto. Quem escreve no chat esta
+  // devolvendo, entao a bola vai para o OUTRO lado.
+  const quem = p.bola === 'Cobra' ? 'Cobra' : 'Despachante';
+  tags.push({ texto: quem, tom: quem === 'Cobra' ? 'cobra' : 'despachante' });
+  return tags;
+}
+
+/** Desenha UMA etiqueta. O cartao monta as linhas; aqui so sai o pedacinho. */
+function tagHTML(t) {
+  return `<span class="etiq ${t.tom === 'pendencia' ? '' : esc(t.tom)}">${esc(t.texto)}</span>`;
+}
+
+/** De quem e a vez (Cobra/Despachante) — linha "Pendente de quem:". */
+function ehResponsavel(t) { return t.tom === 'cobra' || t.tom === 'despachante'; }
+/** O que falta do checklist (Rede/E-mail/Navi) — linha "Pendente do que:". */
+function ehPendencia(t) { return t.tom === 'rede' || t.tom === 'email' || t.tom === 'navi'; }
+
+function cartaoHTML(p) {
+  const etapa = etapaDe(p);
+  const dias = diasCorridos(p.dataEnvio);
+  const velho = dias >= 21 && etapa !== ETAPA_CONCLUIDO;
+  const nl = naoLidas(p.id);
+  const doc = ehDocumento(p);
+  const tags = etiquetasDe(p, etapa);
+  const responsavel = tags.filter(ehResponsavel);
+  const pendencias = tags.filter(ehPendencia);
+  // "outras" = prazo (Novo/Atrasado) e "Pronto para concluir": nao sao
+  // pendencia de ninguem nem de nada, entao vao sem rotulo, na primeira linha.
+  const outras = tags.filter((t) => !ehResponsavel(t) && !ehPendencia(t));
+
+  return `
+  <div class="card pedido ${state.sel === p.id ? 'sel' : ''}" data-id="${esc(p.id)}">
+    <div class="l1">
+      <span>Pedido ${esc(p.id)}</span>
+      <span style="display:flex;align-items:center;gap:7px">
+        <span class="tipo" style="color:${doc ? '#416180' : 'rgba(29,31,32,.55)'}">${esc(rotuloTipo(p))}</span>
+        <span style="color:${velho ? '#416180' : 'rgba(29,31,32,.62)'}">${dias}d</span>
+      </span>
+    </div>
+    <div class="empresa">${esc(p.empresa)}</div>
+    <div class="desc">${esc(curto(p.descricao, 54))}</div>
+    ${p.protocolo ? `<div class="prot"><span class="rot">Jucerja</span><span>${esc(p.protocolo)}</span></div>` : ''}
+    ${outras.length || responsavel.length || pendencias.length || nl ? `<div class="rodape">
+      ${outras.length || nl ? `<div class="rodape-linha">
+        ${outras.map(tagHTML).join('')}
+        ${nl ? `<span class="badge" style="margin-left:auto">${nl}${ICO.balao(10)}</span>` : ''}
+      </div>` : ''}
+      ${responsavel.length ? `<div class="rodape-linha">
+        <span class="pendente-de">Pendente de quem:</span>${responsavel.map(tagHTML).join('')}
+      </div>` : ''}
+      ${pendencias.length ? `<div class="rodape-linha">
+        <span class="pendente-de">Pendente do que:</span>${pendencias.map(tagHTML).join('')}
+      </div>` : ''}
+    </div>` : ''}
+  </div>`;
+}
+
+function renderQuadro() {
+  const baldes = [[], [], [], []];
+  state.pedidos.filter(casaBusca).forEach((p) => baldes[etapaDe(p).coluna].push(p));
+
+  $('quadro').innerHTML = COLUNAS.map((titulo, i) => `
+    <div class="coluna">
+      <div class="coluna-cab"><span class="t">${esc(titulo)}</span><span class="n">${baldes[i].length}</span></div>
+      <div class="pilha">
+        ${baldes[i].map(cartaoHTML).join('')}
+        ${baldes[i].length ? '' : '<div class="vazio">Nenhum pedido nesta etapa</div>'}
+      </div>
+    </div>`).join('');
+
+  $('quadro').querySelectorAll('.pedido').forEach((el) => {
+    el.addEventListener('click', () => alternarGaveta(el.getAttribute('data-id')));
+  });
+}
+
+/* --------------------------------------------------------------------------
+ * 9. CADASTRO
+ * ------------------------------------------------------------------------ */
+
+const FLUXO_ATO = [
+  { label:'Despachante recebe',   meta:'Via assinada e instruções' },
+  { label:'Protocolo na Jucerja', meta:'Número de protocolo' },
+  { label:'Registro na Junta',    meta:'Via registrada de volta' },
+  { label:'Conferência do jurídico', meta:'Checklist e encerramento' }
+];
+const FLUXO_DOC = [
+  { label:'Despachante solicita', meta:'Órgão ou cartório' },
+  { label:'Devolve digitalizado', meta:'Sem passar pela Junta' },
+  { label:'Conferência do jurídico', meta:'Checklist e encerramento' }
+];
+
+function renderNovo() {
+  const ato = state.fTipo === 'ato';
+  const titulo = ato ? 'Cadastrar pedido ao despachante' : 'Solicitar documento ao despachante';
+  const sub = ato
+    ? 'O pedido entra em A protocolar e segue Junta → Conferência, com o chat aberto com o despachante.'
+    : 'Documento não passa pela Junta: o despachante solicita, devolve digitalizado e o pedido vai direto para Conferência.';
+  const cta = ato ? 'Enviar ao despachante' : 'Solicitar documento';
+  const descPreview = ato ? (state.fDesc || 'Descrição do documento') : state.fDoc;
+  const fluxo = ato ? FLUXO_ATO : FLUXO_DOC;
+
+  $('novo').innerHTML = `
+  <div id="novo-principal">
+    <div class="kicker">Novo registro</div>
+    <h3 style="margin:6px 0 4px;font-size:30px">${esc(titulo)}</h3>
+    <div style="font:400 13px/1.6 var(--body);color:rgba(29,31,32,.65);max-width:580px">${esc(sub)}</div>
+
+    <div class="field" style="margin-top:26px;max-width:420px">
+      <label>Tipo de pedido</label>
+      <div class="seg">
+        <button type="button" data-tipo="ato" class="${ato ? 'on' : ''}">Ato societário</button>
+        <button type="button" data-tipo="doc" class="${ato ? '' : 'on'}">Documento</button>
+      </div>
+    </div>
+
+    <div class="grade">
+      <div class="field span2">
+        <label>Empresa</label>
+        <select class="input" id="f-empresa">
+          ${EMPRESAS.map((e) => `<option value="${esc(e)}" ${e === state.fEmpresa ? 'selected' : ''}>${esc(e)}</option>`).join('')}
+        </select>
+      </div>
+
+      ${ato ? `
+      <div class="field span2">
+        <label>Descrição do documento</label>
+        <input class="input" id="f-desc" placeholder="Ex.: Ata de Reunião de Sócios — Aumento de Capital Social" value="${esc(state.fDesc)}">
+      </div>` : `
+      <div class="field">
+        <label>Documento solicitado</label>
+        <select class="input" id="f-doc">
+          ${DOCUMENTOS.map((d) => `<option value="${esc(d)}" ${d === state.fDoc ? 'selected' : ''}>${esc(d)}</option>`).join('')}
+        </select>
+      </div>`}
+
+      <div class="field">
+        <label>Prazo desejado</label>
+        <input class="input" id="f-prazo" type="date" value="${esc(state.fPrazo)}">
+      </div>
+
+      <div class="field span2">
+        <label>${ato ? 'Instrução ao despachante' : 'Finalidade e observações'}</label>
+        <textarea class="input" id="f-nota" rows="${ato ? 4 : 2}"
+          placeholder="${ato ? 'Contexto, urgência, exigências já conhecidas…' : 'Ex.: habilitação em licitação — prazo do edital 12/09'}">${esc(state.fNota)}</textarea>
+      </div>
+
+      ${ato ? `
+      <div class="span2">
+        <div class="kicker" style="margin-bottom:8px">Arquivos do pedido</div>
+        <div class="dropzone" id="f-drop">
+          ${ICO.upload(24)}
+          <div style="font:400 12.5px var(--body);color:rgba(29,31,32,.65)">Arraste a via assinada, procurações e comprovantes</div>
+          <button type="button" class="btn btn-secondary" style="height:32px;font-size:12px">Selecionar arquivos</button>
+        </div>
+        ${state.fArquivos.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">${
+          state.fArquivos.map((f, i) => `<span class="chip-arq">${ICO.arquivo(12)}<span>${esc(f.name)}</span><button type="button" data-remove="${i}" title="Remover">×</button></span>`).join('')
+        }</div>` : ''}
+      </div>` : ''}
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:30px;padding-top:22px;border-top:1px solid var(--div-forte)">
+      <button class="btn btn-primary" id="f-criar" style="height:38px;padding:0 22px;letter-spacing:.1em;text-transform:uppercase;font-size:12px">${esc(cta)}</button>
+      <button class="btn btn-ghost" id="f-cancelar" style="height:38px;font-size:12px">Cancelar</button>
+    </div>
+  </div>
+
+  <div id="novo-lateral">
+    <div class="kicker">Prévia do cartão</div>
+    <div class="card" style="padding:13px 14px;gap:6px;margin-top:12px">
+      <div style="display:flex;justify-content:space-between;gap:8px;font:400 10.5px var(--mono);color:var(--tx-2)">
+        <span>Pedido ${esc(state.novoId || '····')}</span>
+        <span class="tipo" style="font:400 9px var(--body);letter-spacing:.12em;text-transform:uppercase">${ato ? 'Ato societário' : 'Documento'}</span>
+      </div>
+      <div id="prev-empresa" style="font:600 14px/1.2 var(--cond);letter-spacing:.02em">${esc(state.fEmpresa)}</div>
+      <div id="prev-desc" style="font:400 12px/1.4 var(--body);color:rgba(29,31,32,.65)">${esc(curto(descPreview, 54))}</div>
+    </div>
+
+    <div class="kicker" style="margin:28px 0 10px">Fluxo esperado</div>
+    <div style="display:flex;flex-direction:column">
+      ${fluxo.map((f, i) => `
+        <div class="fluxo-passo">
+          <div class="marca"><span class="quad"></span>${i < fluxo.length - 1 ? '<span class="linha"></span>' : ''}</div>
+          <div style="padding-bottom:12px">
+            <div style="font:600 11.5px var(--cond);letter-spacing:.1em;text-transform:uppercase">${esc(f.label)}</div>
+            <div style="font:400 11px var(--body);color:var(--tx-2)">${esc(f.meta)}</div>
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>`;
+
+  // Ligacoes. Guardar o valor a cada digitacao mantem a previa viva sem
+  // redesenhar o formulario inteiro (o que faria o campo perder o foco).
+  $('novo').querySelectorAll('.seg button').forEach((b) => {
+    b.addEventListener('click', () => { state.fTipo = b.getAttribute('data-tipo'); renderNovo(); });
+  });
+  // A previa e atualizada NO LUGAR. Redesenhar o formulario a cada tecla
+  // faria o campo perder o foco no meio da digitacao.
+  $('f-empresa').addEventListener('change', (e) => {
+    state.fEmpresa = e.target.value;
+    $('prev-empresa').textContent = state.fEmpresa;
+  });
+  if ($('f-desc')) $('f-desc').addEventListener('input', (e) => {
+    state.fDesc = e.target.value;
+    $('prev-desc').textContent = curto(state.fDesc || 'Descrição do documento', 54);
+  });
+  if ($('f-doc')) $('f-doc').addEventListener('change', (e) => { state.fDoc = e.target.value; renderNovo(); });
+  $('f-prazo').addEventListener('change', (e) => { state.fPrazo = e.target.value; });
+  $('f-nota').addEventListener('input', (e) => { state.fNota = e.target.value; });
+  $('f-cancelar').addEventListener('click', () => irPara('quadro'));
+  $('f-criar').addEventListener('click', criarPedido);
+
+  const drop = $('f-drop');
+  if (drop) {
+    drop.addEventListener('click', async () => {
+      const fs = await escolherArquivos(true);
+      if (fs.length) { state.fArquivos = state.fArquivos.concat(fs); renderNovo(); }
+    });
+    drop.addEventListener('dragover', (e) => { e.preventDefault(); });
+    drop.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const fs = Array.prototype.slice.call((e.dataTransfer && e.dataTransfer.files) || []);
+      if (fs.length) { state.fArquivos = state.fArquivos.concat(fs); renderNovo(); }
+    });
+    $('novo').querySelectorAll('[data-remove]').forEach((b) => {
+      b.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        state.fArquivos.splice(Number(b.getAttribute('data-remove')), 1);
+        renderNovo();
+      });
+    });
+  }
+}
+
+function irPara(page) {
+  state.page = page;
+  $('quadro').hidden = page !== 'quadro';
+  $('novo').hidden = page !== 'novo';
+  if (page === 'novo') {
+    state.fDesc = ''; state.fNota = ''; state.fPrazo = ''; state.fArquivos = [];
+    state.novoId = '';
+    // O id so e reservado no servidor na hora de salvar (e o que evita pasta
+    // orfa, correcao da V1); ate la a previa mostra so o lugar dele.
+    renderNovo();
+  } else {
+    renderQuadro();
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * 10. GAVETA
+ * ------------------------------------------------------------------------ */
+
+function alternarGaveta(id) {
+  if (state.sel === id) { fecharGaveta(); return; }
+  abrirGaveta(id);
+}
+
+function fecharGaveta() {
+  state.sel = null; state.actionOpen = false;
+  state.chat = []; state.pagamentos = [];
+  $('gaveta').hidden = true;
+  $('backdrop').hidden = true;
+  renderQuadro();
+}
+
+async function abrirGaveta(id) {
+  state.sel = id;
+  state.tab = 'chat';
+  state.actionOpen = false;
+  state.draft = ''; state.draftAnexos = [];
+  state.fProt = ''; state.fData = hojeISO(); state.fAnexo = null;
+  state.pTipo = TIPOS_PAGAMENTO[0]; state.pValor = ''; state.pDesc = ''; state.pComp = null;
+  state.chat = []; state.pagamentos = [];
+
+  marcarLido(id);
+  renderQuadro();
+  $('backdrop').hidden = false;
+  $('gaveta').hidden = false;
+  renderGaveta();          // desenha ja, com chat e pagamentos vazios
+
+  if (!state.ambienteGAS) return;
+  try {
+    const [chat, pags] = await Promise.all([
+      chamarServidor('getPendencias', [id], 60000),
+      chamarServidor('getReembolsos', [id], 60000)
+    ]);
+    if (state.sel !== id) return;   // o usuario ja fechou ou trocou de pedido
+    state.chat = chat || [];
+    state.pagamentos = pags || [];
+    renderGaveta();
+  } catch (e) {
+    tratarErro(e);
+  }
+}
+
+function blocoAcaoHTML(p, etapa) {
+  if (!etapa.acao) return '';
+  const acao = ACOES[etapa.acao];
+
+  // Concluir e do juridico e exige o checklist inteiro. As outras transicoes
+  // sao de quem executa — o despachante tambem pode registra-las.
+  const soJuridico = etapa.acao === 'concluir';
+  if (soJuridico && state.role === 'despachante') return '';
+
+  const faltaChecklist = soJuridico && !checklistCompleto(p);
+  const bloqueado = faltaChecklist;
+  const dica = faltaChecklist ? 'Complete os três itens do Checklist para concluir o pedido.' : '';
+
+  return `
+  <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px">
+    <button class="btn btn-primary" id="g-acao" ${bloqueado ? 'disabled' : ''}
+      style="height:36px;font-size:12px;letter-spacing:.1em;text-transform:uppercase">${esc(acao.rotulo)}</button>
+    ${dica ? `<div class="dica">${ICO.info(13)}<span>${esc(dica)}</span></div>` : ''}
+    ${state.actionOpen && !bloqueado ? `
+    <div class="form-acao">
+      <div>
+        <div style="font:600 12px var(--cond);letter-spacing:.12em;text-transform:uppercase">${esc(acao.titulo)}</div>
+        <div style="font:400 11.5px/1.45 var(--body);color:var(--tx-2);margin-top:3px">${esc(acao.ajuda)}</div>
+      </div>
+      ${acao.protocolo ? `
+      <div class="field">
+        <label>Número do protocolo Jucerja</label>
+        <input class="input" id="a-prot" placeholder="PRT00000000" value="${esc(state.fProt)}" style="font-family:var(--mono)">
+      </div>` : ''}
+      ${acao.data ? `
+      <div class="field"><label>Data</label><input class="input" id="a-data" type="date" value="${esc(state.fData)}"></div>` : ''}
+      ${acao.anexo ? `
+      <div class="field">
+        <label>${esc(acao.anexo)}</label>
+        <div style="display:flex;gap:8px">
+          <input class="input" id="a-anexo-nome" readonly placeholder="nenhum arquivo escolhido"
+            value="${esc(state.fAnexo ? state.fAnexo.name : '')}" style="flex:1">
+          <button class="btn btn-secondary btn-icon" id="a-anexo" title="Anexar arquivo">${ICO.clipe(15)}</button>
+        </div>
+      </div>` : ''}
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" id="a-confirmar" style="height:34px;font-size:12px;letter-spacing:.08em;text-transform:uppercase">Confirmar e mover</button>
+        <button class="btn btn-ghost" id="a-cancelar" style="height:34px;font-size:12px">Cancelar</button>
+      </div>
+    </div>` : ''}
+  </div>`;
+}
+
+function abaChatHTML(p) {
+  const meuPapel = state.role === 'despachante' ? 'Despachante' : 'Cobra';
+  const linhas = state.chat.map((m) => {
+    const papel = String(m.papel || '').trim();
+    const sistema = papel.toLowerCase() === 'sistema';
+    const eu = !sistema && papel === meuPapel;
+    const classe = sistema ? 'sistema' : (eu ? 'eu' : 'outro');
+    const nome = sistema ? 'Registro do sistema' : (papel === 'Despachante' ? 'Despachante' : 'Jurídico');
+    const quem = (!sistema && m.autor) ? (nome + ' · ' + m.autor) : nome;
+    const anexos = (m.arquivos || []).map((a) => a.url
+      ? `<a class="arquivo" href="${esc(a.url)}" target="_blank" rel="noopener" style="padding:6px 10px">${ICO.arquivo(13)}<span class="nome" style="font-size:11px">${esc(a.nome)}</span></a>`
+      : `<div class="arquivo" style="padding:6px 10px">${ICO.arquivo(13)}<span class="nome" style="font-size:11px">${esc(a.nome)}</span></div>`).join('');
+    return `
+    <div class="msg ${classe}">
+      <div class="autoria"><b>${esc(quem)}</b><span>${esc(m.dataHora)}</span></div>
+      <div class="bolha">${esc(m.mensagem)}</div>
+      ${anexos}
+    </div>`;
+  }).join('');
+
+  // `flex:none` no bloco (classe .bloco-chat) e deliberado: a gaveta e uma
+  // coluna flex que rola, e um `flex:1` aqui faria o chat ceder espaco para os
+  // blocos de baixo em vez de manter o seu.
+  return `
+  <div class="bloco-chat">
+    <div id="chat-lista">${linhas || '<div class="vazio">Nenhuma mensagem ainda.</div>'}</div>
+    <div id="composer">
+      ${state.draftAnexos.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${
+        state.draftAnexos.map((f, i) => `<span class="chip-arq">${ICO.arquivo(12)}<span>${esc(f.name)}</span><button type="button" data-tira="${i}">×</button></span>`).join('')
+      }</div>` : ''}
+      <div style="display:flex;gap:8px;align-items:flex-start">
+        <input class="input" id="c-texto" placeholder="Escrever para o despachante…" value="${esc(state.draft)}" style="flex:1">
+        <button class="btn btn-secondary btn-icon" id="c-anexar" title="Anexar arquivo">${ICO.clipe(15)}</button>
+        <button class="btn btn-primary" id="c-enviar" style="padding:0 14px;font-size:12px;letter-spacing:.08em;text-transform:uppercase">Enviar</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function itemCheckHTML(p, qual, titulo, marcado, quando, pendencia) {
+  const pode = podeCheck(qual);
+  return `
+  <div class="check-item">
+    <button class="check-box ${marcado ? 'on' : ''} ${pode ? 'pode' : ''}" data-check="${qual}" ${pode ? '' : 'disabled'}
+      title="${pode ? 'Marcar/desmarcar' : 'Seu perfil não altera este item'}">${marcado ? '✓' : ''}</button>
+    <div style="flex:1">
+      <div class="t" style="color:${marcado ? 'var(--ink)' : 'rgba(29,31,32,.6)'}">${esc(titulo)}</div>
+      <div class="s">${marcado ? ('conferido em ' + esc(quando || '—')) : esc(pendencia)}</div>
+    </div>
+  </div>`;
+}
+
+function abaChecklistHTML(p) {
+  return `
+  <div style="padding:20px 22px 28px;display:flex;flex-direction:column;gap:10px">
+    <div class="kicker">Checklist do jurídico</div>
+    <div style="display:flex;flex-direction:column;border-top:1px solid var(--div-forte)">
+      ${itemCheckHTML(p, 'rede', 'Arquivado na pasta da rede', p.arquivadoRede, p.arquivadoRedeEm, 'pendente — clique para marcar')}
+      ${itemCheckHTML(p, 'email', 'Verificado e-mail de atualização interna', p.emailVerificado, p.emailVerificadoEm, 'pendente — e-mail de atualização não enviado')}
+      ${itemCheckHTML(p, 'navi', 'Pagamento lançado no Navi', p.pagamentoNavi, p.pagamentoNaviEm, 'pendente — lançar no Navi')}
+    </div>
+  </div>`;
+}
+
+function abaPagamentosHTML(p) {
+  const total = state.pagamentos.reduce((s, x) => s + (Number(x.valor) || 0), 0);
+  const valido = paraNumero(state.pValor) > 0 && state.pDesc.trim();
+
+  const historico = state.pagamentos.map((x) => {
+    const comp = (x.arquivos || [])[0];
+    return `
+    <div class="card pag">
+      <div class="l1"><span class="tipo">${esc(x.tipo)}</span><span class="valor">${esc(BRL(x.valor))}</span></div>
+      <div class="desc">${esc(x.objeto)}</div>
+      <div class="rodape">
+        <span>${esc(x.dataHora)}${x.autor ? ' · ' + esc(x.autor) : ''}</span>
+        ${comp ? `<a href="${esc(comp.url || '#')}" target="_blank" rel="noopener" style="margin-left:auto;display:flex;align-items:center;gap:6px;font:400 10.5px var(--body);color:var(--acc7);text-decoration:none">${ICO.arquivo(12)}${esc(comp.nome)}</a>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  return `
+  <div style="padding:20px 22px 28px;display:flex;flex-direction:column;gap:20px">
+    <div>
+      <div class="kicker" style="margin-bottom:10px">Lançar pagamento</div>
+      <div style="border:1px solid rgba(29,31,32,.2);padding:14px 15px;display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;gap:10px">
+          <div class="field" style="flex:1">
+            <label>Tipo</label>
+            <select class="input" id="p-tipo">
+              ${TIPOS_PAGAMENTO.map((t) => `<option value="${esc(t)}" ${t === state.pTipo ? 'selected' : ''}>${esc(t)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field" style="width:130px">
+            <label>Valor (R$)</label>
+            <input class="input" id="p-valor" placeholder="0,00" value="${esc(state.pValor)}">
+          </div>
+        </div>
+        <div class="field">
+          <label>Descrição</label>
+          <input class="input" id="p-desc" placeholder="Ex.: DARE Jucerja — taxa de arquivamento" value="${esc(state.pDesc)}">
+        </div>
+        <div class="field">
+          <label>Comprovante</label>
+          <div style="display:flex;gap:8px">
+            <input class="input" id="p-comp-nome" readonly placeholder="comprovante.pdf" value="${esc(state.pComp ? state.pComp.name : '')}" style="flex:1">
+            <button class="btn btn-secondary btn-icon" id="p-comp" title="Anexar comprovante">${ICO.clipe(15)}</button>
+          </div>
+        </div>
+        <button class="btn btn-primary" id="p-lancar" ${valido ? '' : 'disabled'}
+          style="height:34px;font-size:12px;letter-spacing:.08em;text-transform:uppercase">Lançar no histórico</button>
+      </div>
+    </div>
+
+    <div>
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px">
+        <span class="kicker">Histórico do pedido</span>
+        <span style="margin-left:auto;font:600 17px var(--cond);color:var(--acc7)">${esc(BRL(total))}</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        ${historico || '<div class="vazio" style="padding:18px 14px;font-size:12px">Nenhum pagamento lançado neste pedido.</div>'}
+      </div>
+    </div>
+  </div>`;
+}
+
+/**
+ * Aba "Arquivos".
+ *
+ * Ja foi um bloco fixo da gaveta, logo abaixo do resumo — e ali um pedido com
+ * muitos anexos empurrava as abas e o chat para fora da tela. Virou aba porque
+ * lista de arquivo cresce sem limite e nada que cresce sem limite pode dividir
+ * espaco com o que o usuario olha o tempo todo. Aqui ela tem a tela inteira e
+ * mostra tudo, sem dobra.
+ */
+function abaArquivosHTML(p, arquivos) {
+  const linha = (a) => a.url
+    ? `<a class="arquivo" href="${esc(a.url)}" target="_blank" rel="noopener">${ICO.arquivo(14)}<span class="nome">${esc(a.nome)}</span><span class="meta">${esc(a.meta)}</span></a>`
+    : `<div class="arquivo">${ICO.arquivo(14)}<span class="nome">${esc(a.nome)}</span><span class="meta">${esc(a.meta)}</span></div>`;
+
+  return `
+  <div style="padding:20px 22px 28px;display:flex;flex-direction:column;gap:12px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span class="kicker">Arquivos vinculados ${arquivos.length}</span>
+      ${p.folderUrl ? `<a class="btn btn-secondary" href="${esc(p.folderUrl)}" target="_blank" rel="noopener"
+        style="height:28px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;margin-left:auto">${ICO.pasta(13)}Abrir pasta</a>` : ''}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      ${arquivos.map(linha).join('') || '<div class="vazio">Nenhum arquivo vinculado.</div>'}
+    </div>
+    <div style="font:400 10.5px var(--mono);color:var(--tx-2);word-break:break-all">
+      Drive · Controle Despachante — Arquivos / ${esc(p.id)} - ${esc(p.empresa)}
+    </div>
+  </div>`;
+}
+
+/** Qual aba desenhar. Separado para a ordem dos botoes acima ser so ordem. */
+function conteudoDaAbaHTML(p, arquivos) {
+  if (state.tab === 'pag')   return abaPagamentosHTML(p);
+  if (state.tab === 'check') return abaChecklistHTML(p);
+  if (state.tab === 'arq')   return abaArquivosHTML(p, arquivos);
+  return abaChatHTML(p);
+}
+
+function renderGaveta() {
+  const p = pedidoPorId(state.sel);
+  if (!p) { fecharGaveta(); return; }
+
+  const etapa = etapaDe(p);
+  const chip = CHIP[etapa.rotulo] || CHIP['A protocolar'];
+  const dias = diasCorridos(p.dataEnvio);
+  const arquivos = arquivosDe(p);
+
+  $('gaveta').innerHTML = `
+  <div class="g-resumo">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="kicker">Pedido ${esc(p.id)} · ${esc(rotuloTipo(p))}</div>
+      <span class="tag" style="background:${chip.bg};color:${chip.fg};border-color:${chip.bd}">${esc(etapa.rotulo)}</span>
+      <button class="btn btn-ghost btn-icon" id="g-fechar" title="Fechar" style="width:28px;height:28px;margin-left:auto">${ICO.fechar(15)}</button>
+    </div>
+    <h4 style="margin:8px 0 3px;font-size:21px;line-height:1.15">${esc(p.empresa)}</h4>
+    <div style="font:400 12.5px/1.5 var(--body);color:var(--tx-3)">${esc(p.descricao)}</div>
+
+    <div class="g-meta">
+      <span>Envio ${esc(dataBR(p.dataEnvio))}</span>
+      <span>${dias} dias corridos</span>
+      <span>Com ${esc(aguardandoDe(p))}</span>
+      ${p.protocolo ? `<span style="display:flex;align-items:center;gap:6px">Jucerja
+        <b style="font:400 11px var(--mono);color:rgba(29,31,32,.75)">${esc(p.protocolo)}</b>
+        <button class="btn btn-ghost btn-icon" id="g-copiar" title="Copiar" style="width:22px;height:22px">${ICO.copiar(12)}</button></span>` : ''}
+    </div>
+
+    ${blocoAcaoHTML(p, etapa)}
+  </div>
+
+  <div class="abas">
+    <button data-tab="chat"  class="${state.tab === 'chat' ? 'on' : ''}">Chat</button>
+    <button data-tab="pag"   class="${state.tab === 'pag' ? 'on' : ''}">Pagamentos</button>
+    <button data-tab="check" class="${state.tab === 'check' ? 'on' : ''}">Checklist</button>
+    <button data-tab="arq"   class="${state.tab === 'arq' ? 'on' : ''}">Arquivos</button>
+  </div>
+
+  ${conteudoDaAbaHTML(p, arquivos)}
+
+  ${state.role === 'admin' ? `
+  <div class="g-secao" style="border-bottom:0;border-top:1px solid var(--div-forte);display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <span class="kicker" style="flex:1;min-width:90px">Administração</span>
+    <button class="btn btn-ghost" id="g-corrigir" style="height:26px;font-size:11px;letter-spacing:.06em;text-transform:uppercase">Corrigir dados</button>
+    <button class="btn btn-ghost" id="g-excluir" style="height:26px;font-size:11px;letter-spacing:.06em;text-transform:uppercase">Excluir pedido</button>
+  </div>` : ''}`;
+
+  ligarGaveta(p, etapa);
+}
+
+function ligarGaveta(p, etapa) {
+  const g = $('gaveta');
+  $('g-fechar').addEventListener('click', fecharGaveta);
+  g.querySelectorAll('.abas button').forEach((b) => {
+    b.addEventListener('click', () => { state.tab = b.getAttribute('data-tab'); renderGaveta(); });
+  });
+  if ($('g-copiar')) $('g-copiar').addEventListener('click', () => {
+    try { navigator.clipboard.writeText(p.protocolo); avisar('Protocolo copiado: ' + p.protocolo, 'Copiado'); }
+    catch (e) { avisar('Protocolo: ' + p.protocolo, 'Copie manualmente'); }
+  });
+
+  // --- acao de etapa ---
+  if ($('g-acao')) $('g-acao').addEventListener('click', () => {
+    if (etapa.acao === 'concluir') { confirmarAcao(p, etapa); return; }
+    state.actionOpen = !state.actionOpen; renderGaveta();
+  });
+  if ($('a-prot')) $('a-prot').addEventListener('input', (e) => { state.fProt = e.target.value; });
+  if ($('a-data')) $('a-data').addEventListener('change', (e) => { state.fData = e.target.value; });
+  if ($('a-anexo')) $('a-anexo').addEventListener('click', async () => {
+    const fs = await escolherArquivos(false);
+    if (fs.length) { state.fAnexo = fs[0]; renderGaveta(); }
+  });
+  if ($('a-cancelar')) $('a-cancelar').addEventListener('click', () => { state.actionOpen = false; renderGaveta(); });
+  if ($('a-confirmar')) $('a-confirmar').addEventListener('click', () => confirmarAcao(p, etapa));
+
+  // --- checklist ---
+  g.querySelectorAll('[data-check]').forEach((b) => {
+    b.addEventListener('click', () => alternarCheck(p, b.getAttribute('data-check')));
+  });
+
+  // --- chat ---
+  if ($('c-texto')) {
+    const campo = $('c-texto');
+    campo.addEventListener('input', (e) => { state.draft = e.target.value; });
+    campo.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); enviarMensagem(p); } });
+    $('c-anexar').addEventListener('click', async () => {
+      const fs = await escolherArquivos(true);
+      if (fs.length) { state.draftAnexos = state.draftAnexos.concat(fs); renderGaveta(); }
+    });
+    $('c-enviar').addEventListener('click', () => enviarMensagem(p));
+    g.querySelectorAll('[data-tira]').forEach((b) => b.addEventListener('click', () => {
+      state.draftAnexos.splice(Number(b.getAttribute('data-tira')), 1); renderGaveta();
+    }));
+    const lista = $('chat-lista');
+    if (lista) lista.scrollTop = lista.scrollHeight;   // rola o container, nunca a pagina
+  }
+
+  // --- pagamentos ---
+  if ($('p-lancar')) {
+    $('p-tipo').addEventListener('change', (e) => { state.pTipo = e.target.value; });
+    $('p-valor').addEventListener('input', (e) => { state.pValor = e.target.value; atualizarBotaoPagamento(); });
+    $('p-desc').addEventListener('input', (e) => { state.pDesc = e.target.value; atualizarBotaoPagamento(); });
+    $('p-comp').addEventListener('click', async () => {
+      const fs = await escolherArquivos(false);
+      if (fs.length) { state.pComp = fs[0]; renderGaveta(); }
+    });
+    $('p-lancar').addEventListener('click', () => lancarPagamento(p));
+  }
+
+  // --- admin ---
+  if ($('g-excluir')) $('g-excluir').addEventListener('click', () => excluirPedido(p));
+  if ($('g-corrigir')) $('g-corrigir').addEventListener('click', () => corrigirPedido(p));
+}
+
+/** So o botao muda de estado: redesenhar a aba faria o campo perder o foco. */
+function atualizarBotaoPagamento() {
+  const b = $('p-lancar');
+  if (b) b.disabled = !(paraNumero(state.pValor) > 0 && state.pDesc.trim());
+}
+
+/* --------------------------------------------------------------------------
+ * 11. ACOES QUE ESCREVEM
+ * ------------------------------------------------------------------------ */
+
+/** O saveAta reescreve a linha inteira, entao todo campo tem de ir junto —
+ *  mandar so o que mudou apagaria o resto. */
+function payloadDe(p, mudancas) {
+  return Object.assign({
+    id: p.id, empresa: p.empresa, descricao: p.descricao, dataEnvio: p.dataEnvio,
+    status: p.status, arquivoAssinada: p.arquivoAssinada, urlAssinada: p.urlAssinada,
+    protocolo: p.protocolo, arquivoRegistrada: p.arquivoRegistrada, urlRegistrada: p.urlRegistrada,
+    reembolso: p.reembolso, honorarios: p.honorarios,
+    arquivoNotaFiscal: p.arquivoNotaFiscal, urlNotaFiscal: p.urlNotaFiscal,
+    folderUrl: p.folderUrl, dataProtocolo: p.dataProtocolo,
+    arquivoComprovante: p.arquivoComprovante, urlComprovante: p.urlComprovante,
+    dataConclusao: p.dataConclusao, statusAnterior: p.statusAnterior,
+    statusFinanceiro: p.statusFinanceiro, tipo: p.tipo
+  }, mudancas || {});
+}
+
+/** Nota automatica no chat (papel 'Sistema'). Nao e de ninguem, entao NAO
+ *  mexe na pendencia: quem decide de quem e a vez e so a ultima mensagem de
+ *  uma pessoa. O servidor garante isso em postDevolucao. */
+function notaDoSistema(pedidoId, texto, semEmail) {
+  return chamarServidor('postDevolucao', [{
+    ataId: pedidoId, autor: 'Registro do sistema', papel: 'Sistema',
+    mensagem: texto, arquivos: [], semEmail: !!semEmail
+  }], 90000);
+}
+
+async function confirmarAcao(p, etapa) {
+  const acao = ACOES[etapa.acao];
+  try {
+    if (etapa.acao === 'concluir') {
+      if (!checklistCompleto(p)) { avisar('Complete os três itens do Checklist para concluir o pedido.'); return; }
+      const ok = await confirmar('Concluir o pedido ' + p.id + '? Ele sai da fila de trabalho e vai para Concluído.');
+      if (!ok) return;
+      mostrarCarregando('Concluindo o pedido…');
+      await chamarServidor('concluirPedido', [p.id], 90000);
+      await notaDoSistema(p.id, 'Pedido conferido e encerrado pelo jurídico.', true);
+    } else {
+      if (acao.protocolo && !state.fProt.trim()) { avisar('O número de protocolo é obrigatório.'); return; }
+      if (acao.data && !state.fData) { avisar('A data é obrigatória.'); return; }
+
+      let anexo = null;
+      if (state.fAnexo) anexo = await subirArquivo(state.fAnexo, p.id, p.empresa, p.descricao);
+
+      const mudancas = { status: acao.destino };
+      if (acao.protocolo) { mudancas.protocolo = state.fProt.trim(); mudancas.dataProtocolo = state.fData; }
+      // O documento devolvido reaproveita a coluna "Ata Registrada" — mesma
+      // coluna, rotulo diferente, como ja se faz com a aba "Pendencias".
+      if (anexo) { mudancas.arquivoRegistrada = anexo.nome; mudancas.urlRegistrada = anexo.url; }
+
+      mostrarCarregando('Movendo o pedido…');
+      await chamarServidor('saveAta', [payloadDe(p, mudancas)], 120000);
+
+      const dataTxt = dataBR(state.fData);
+      let nota;
+      if (etapa.acao === 'protocolar') {
+        nota = `Protocolizado em ${dataTxt} sob ${state.fProt.trim()}.`;
+      } else if (etapa.acao === 'registrar') {
+        nota = `Registrado na Junta em ${dataTxt}${anexo ? ' — ' + anexo.nome : ''}.`;
+      } else {
+        nota = `Documento devolvido em ${dataTxt}${anexo ? ' — ' + anexo.nome : ''}.`;
+      }
+      await notaDoSistema(p.id, nota, false);
+    }
+
+    state.actionOpen = false;
+    state.fProt = ''; state.fAnexo = null;
+    await recarregar();
+  } catch (e) { tratarErro(e); }
+}
+
+async function alternarCheck(p, qual) {
+  if (!podeCheck(qual)) return;
+  const funcao = qual === 'rede' ? 'setArquivadoRede' : (qual === 'navi' ? 'setPagamentoNavi' : 'setEmailVerificado');
+  const atual = qual === 'rede' ? p.arquivadoRede : (qual === 'navi' ? p.pagamentoNavi : p.emailVerificado);
+  try {
+    mostrarCarregando('Atualizando o checklist…');
+    await chamarServidor(funcao, [p.id, !atual], 60000);
+    await recarregar();
+  } catch (e) { tratarErro(e); }
+}
+
+async function enviarMensagem(p) {
+  const texto = state.draft.trim();
+  if (!texto && !state.draftAnexos.length) return;
+  try {
+    const arquivos = [];
+    for (let i = 0; i < state.draftAnexos.length; i++) {
+      arquivos.push(await subirArquivo(state.draftAnexos[i], p.id, p.empresa, p.descricao));
+    }
+    mostrarCarregando('Enviando…');
+    await chamarServidor('postDevolucao', [{
+      ataId: p.id, autor: state.email || '', mensagem: texto, arquivos: arquivos,
+      papel: state.role === 'despachante' ? 'Despachante' : 'Cobra'
+    }], 90000);
+    state.draft = ''; state.draftAnexos = [];
+    await recarregar();
+  } catch (e) { tratarErro(e); }
+}
+
+async function lancarPagamento(p) {
+  const valor = paraNumero(state.pValor);
+  const desc = state.pDesc.trim();
+  if (!(valor > 0) || !desc) { avisar('Informe um valor maior que zero e uma descrição.'); return; }
+  try {
+    const arquivos = [];
+    if (state.pComp) arquivos.push(await subirArquivo(state.pComp, p.id, p.empresa, p.descricao));
+
+    mostrarCarregando('Lançando o pagamento…');
+    await chamarServidor('postReembolso', [{
+      ataId: p.id, autor: state.email || '', valor: valor, objeto: desc,
+      tipo: state.pTipo, arquivos: arquivos
+    }], 90000);
+
+    await notaDoSistema(p.id,
+      `Pagamento lançado: ${state.pTipo} ${BRL(valor)}${arquivos.length ? ' — comprovante ' + arquivos[0].nome : ''}.`,
+      true);
+
+    state.pValor = ''; state.pDesc = ''; state.pComp = null;
+    await recarregar();
+  } catch (e) { tratarErro(e); }
+}
+
+async function criarPedido() {
+  const ato = state.fTipo === 'ato';
+  const descricao = ato ? state.fDesc.trim() : state.fDoc;
+  if (!state.fEmpresa) { avisar('Escolha a empresa.'); return; }
+  if (!descricao) { avisar('Descreva o documento que vai para o despachante.'); return; }
+
+  try {
+    mostrarCarregando('Reservando o número do pedido…');
+    const id = await chamarServidor('reservarProximoId', [], 60000);
+
+    // Os arquivos sobem ANTES do save para a linha ja nascer com o link.
+    const enviados = [];
+    for (let i = 0; i < state.fArquivos.length; i++) {
+      enviados.push(await subirArquivo(state.fArquivos[i], id, state.fEmpresa, descricao));
+    }
+
+    mostrarCarregando('Cadastrando o pedido…');
+    await chamarServidor('saveAta', [{
+      id: id, empresa: state.fEmpresa, descricao: descricao,
+      dataEnvio: hojeISO(), status: ato ? 'Enviado' : 'Solicitado',
+      tipo: ato ? 'Ata' : 'Documento',
+      arquivoAssinada: enviados.length ? enviados[0].nome : '',
+      urlAssinada: enviados.length ? enviados[0].url : '',
+      protocolo: '', arquivoRegistrada: '', urlRegistrada: '',
+      reembolso: 0, honorarios: 0, arquivoNotaFiscal: '', urlNotaFiscal: '',
+      arquivoComprovante: '', urlComprovante: '', statusAnterior: '', statusFinanceiro: ''
+    }], 120000);
+
+    // A observacao e o prazo viram a PRIMEIRA MENSAGEM do chat, e nao colunas
+    // novas: e onde o despachante vai ler mesmo. Os arquivos extras vao junto,
+    // porque a linha so tem um campo de arquivo de entrada.
+    const partes = [];
+    if (state.fNota.trim()) partes.push(state.fNota.trim());
+    if (state.fPrazo) partes.push('Prazo desejado: ' + dataBR(state.fPrazo));
+    const extras = enviados.slice(1);
+    if (partes.length || extras.length) {
+      await chamarServidor('postDevolucao', [{
+        ataId: id, autor: state.email || '', papel: 'Cobra',
+        mensagem: partes.join('\n'), arquivos: extras
+      }], 90000);
+    }
+
+    state.fDesc = ''; state.fNota = ''; state.fPrazo = ''; state.fArquivos = [];
+    await recarregar();
+    irPara('quadro');
+    avisar('Pedido ' + id + ' cadastrado.', 'Pronto');
+  } catch (e) { tratarErro(e); }
+}
+
+async function excluirPedido(p) {
+  const ok = await confirmar('Excluir o pedido ' + p.id + ' (' + p.empresa + ')? A linha some da planilha e não volta.');
+  if (!ok) return;
+  try {
+    mostrarCarregando('Excluindo…');
+    await chamarServidor('deleteAta', [p.id], 60000);
+    fecharGaveta();
+    await recarregar();
+  } catch (e) { tratarErro(e); }
+}
+
+/** Correcao manual do admin: conserta o que foi digitado errado, sem passar
+ *  pelas transicoes. Fica escondido de todo mundo que nao e admin. */
+function corrigirPedido(p) {
+  const etapas = Object.keys(ETAPAS).filter((k) =>
+    ehDocumento(p) ? (k === 'Solicitado' || k === 'Devolvido') : (k !== 'Solicitado' && k !== 'Devolvido'));
+
+  $('aviso-titulo').textContent = 'Corrigir dados do pedido ' + p.id;
+  // O formulario e HTML. Com o pre-wrap da caixa (que existe para mensagens de
+  // varias linhas), a indentacao do template virava linhas em branco entre os
+  // campos — e os botoes de salvar saiam da tela.
+  $('aviso-texto').style.whiteSpace = 'normal';
+  $('aviso-texto').innerHTML = `
+    <div class="field" style="margin-bottom:10px"><label>Empresa</label>
+      <select class="input" id="k-empresa">${(EMPRESAS.indexOf(p.empresa) === -1 && p.empresa ? [p.empresa].concat(EMPRESAS) : EMPRESAS)
+        .map((e) => `<option ${e === p.empresa ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select></div>
+    <div class="field" style="margin-bottom:10px"><label>Descrição</label>
+      <input class="input" id="k-desc" value="${esc(p.descricao)}"></div>
+    <div class="field" style="margin-bottom:10px"><label>Número do protocolo</label>
+      <input class="input" id="k-prot" value="${esc(p.protocolo)}" style="font-family:var(--mono)"></div>
+    <div class="field"><label>Etapa gravada</label>
+      <select class="input" id="k-etapa">${etapas.map((k) => `<option value="${esc(k)}" ${k === p.status ? 'selected' : ''}>${esc(ETAPAS[k].rotulo)}</option>`).join('')}</select></div>
+    <div class="field" style="margin-top:10px"><label>Pendente de quem</label>
+      <select class="input" id="k-bola">
+        <option value="Cobra" ${p.bola === 'Cobra' ? 'selected' : ''}>Cobra</option>
+        <option value="Despachante" ${p.bola !== 'Cobra' ? 'selected' : ''}>Despachante</option>
+      </select></div>
+    <div class="dica" style="margin-top:6px">${ICO.info(13)}<span>Vale até a próxima mensagem no chat, que volta a aplicar a regra: quem falou por último passa a vez. A correção fica registrada no chat.</span></div>`;
+  $('aviso-cancelar').hidden = false;
+  $('aviso-ok').textContent = 'Salvar correção';
+  $('modal-aviso').hidden = false;
+
+  // Os valores sao lidos ANTES de qualquer limpeza: o resolver roda com o
+  // modal ja escondido, e limpar o innerHTML primeiro apagaria os campos que
+  // ele precisa ler.
+  avisoResolver = async (ok) => {
+    const novos = {
+      empresa:   $('k-empresa') ? $('k-empresa').value : p.empresa,
+      descricao: $('k-desc')    ? $('k-desc').value    : p.descricao,
+      protocolo: $('k-prot')    ? $('k-prot').value    : p.protocolo,
+      status:    $('k-etapa')   ? $('k-etapa').value   : p.status
+    };
+    // A pendencia vai por outro caminho: saveAta preserva a coluna Bola de
+    // proposito (um save comum nunca a pisa), entao ela tem funcao propria.
+    const bolaAtual = p.bola === 'Cobra' ? 'Cobra' : 'Despachante';
+    const novaBola = $('k-bola') ? $('k-bola').value : bolaAtual;
+    $('aviso-texto').innerHTML = '';
+    if (!ok) return;
+    if (!novos.descricao.trim()) { avisar('A descrição não pode ficar vazia.'); return; }
+    try {
+      mostrarCarregando('Salvando a correção…');
+      await chamarServidor('saveAta', [payloadDe(p, novos)], 120000);
+      if (novaBola !== bolaAtual) {
+        await chamarServidor('setPendencia', [state.token, p.id, novaBola], 60000);
+      }
+      await recarregar();
+    } catch (e) { tratarErro(e); }
+  };
+}
+
+/* --------------------------------------------------------------------------
+ * 12. CARGA E LOGIN
+ * ------------------------------------------------------------------------ */
+
+async function recarregar() {
+  mostrarCarregando('Atualizando…');
+  try {
+    const [atas, resumo] = await Promise.all([
+      chamarServidor('getAtas', [], 120000),
+      chamarServidor('getResumoChats', [], 90000).catch(() => ({}))
+    ]);
+    state.pedidos = atas || [];
+    state.resumoChats = resumo || {};
+    esconderCarregando();
+    renderQuadro();
+    if (state.sel) {
+      const p = pedidoPorId(state.sel);
+      if (!p) { fecharGaveta(); return; }
+      // Chat e pagamentos podem ter mudado junto com a acao que disparou isto.
+      const [chat, pags] = await Promise.all([
+        chamarServidor('getPendencias', [state.sel], 60000).catch(() => state.chat),
+        chamarServidor('getReembolsos', [state.sel], 60000).catch(() => state.pagamentos)
+      ]);
+      state.chat = chat || []; state.pagamentos = pags || [];
+      marcarLido(state.sel);
+      renderGaveta();
+    }
+  } catch (e) { tratarErro(e); }
+}
+
+function aplicarPerfil() {
+  // admin: tudo. cobra: sem administracao. despachante: tambem sem cadastrar.
+  $('btn-admin').hidden = state.role !== 'admin';
+  $('btn-novo').hidden = state.role === 'despachante';
+}
+
+function mostrarApp() {
+  $('login-screen').hidden = true;
+  $('app').hidden = false;
+  aplicarPerfil();
+  recarregar();
+}
+
+function statusLogin(texto, classe) {
+  const el = $('login-status');
+  el.hidden = false;
+  el.className = 'status-msg ' + (classe || 'info');
+  el.textContent = texto;
+}
+
+function checarAutenticacao() {
+  if (!state.ambienteGAS) {   // abrir o arquivo direto no navegador nao autentica
+    $('login-screen').hidden = true;
+    $('app').hidden = false;
+    aplicarPerfil();
+    renderQuadro();
+    return;
+  }
+
+  if (URL_TOKEN) {
+    mostrarCarregando('Ativando sua sessão…');
+    chamarServidor('activateSession', [URL_TOKEN], 60000)
+      .then((res) => {
+        esconderCarregando();
+        if (res && res.sucesso) {
+          lembrarSessao(URL_TOKEN);
+          state.role = res.permissao || 'admin';
+          state.email = res.email || '';
+          state.navi = !!res.navi;
+          mostrarApp();
+        } else {
+          statusLogin((res && res.erro) || 'Não foi possível ativar a sessão.', 'erro');
+        }
+      })
+      .catch((e) => { esconderCarregando(); statusLogin(e.message, 'erro'); });
+    return;
+  }
+
+  // Aceita tambem o token da tela antiga (SGAS_): as duas telas moram na mesma
+  // origem e dividem o storage, entao quem entrou por la ja esta logado aqui.
+  //
+  // BUG que isto corrigiu (V4.2): a validacao usava o SGAS_ mas nao GUARDAVA o
+  // token em lugar nenhum. O Admin, que lia so CD_SessionToken, mandava token
+  // VAZIO ao servidor e recebia "Sessao invalida" de quem estava logado.
+  const token = safeStorage.getItem('CD_SessionToken') || safeStorage.getItem('SGAS_SessionToken');
+  if (!token) return;   // fica no login
+
+  mostrarCarregando('Validando sua sessão…');
+  chamarServidor('validateSessionToken', [token], 60000)
+    .then((res) => {
+      esconderCarregando();
+      if (res && res.sucesso) {
+        lembrarSessao(token);
+        state.role = res.permissao || 'admin';
+        state.email = res.email || '';
+        state.navi = !!res.navi;
+        mostrarApp();
+      } else {
+        safeStorage.setItem('CD_SessionToken', '');
+        statusLogin((res && res.erro) || 'Sessão expirada. Entre de novo.', 'erro');
+      }
+    })
+    .catch((e) => { esconderCarregando(); statusLogin(e.message, 'erro'); });
+}
+
+function entrar() {
+  const email = $('login-email').value.trim();
+  const senha = $('login-password').value;
+  if (!email || !senha) { statusLogin('Informe e-mail e senha.', 'erro'); return; }
+
+  const botao = $('btn-request-login');
+  botao.disabled = true; botao.textContent = 'Autenticando…';
+  statusLogin('Verificando credenciais…', 'info');
+
+  chamarServidor('loginWithPassword', [email, senha], 60000)
+    .then((res) => {
+      botao.disabled = false; botao.textContent = 'Entrar no sistema';
+      if (res && res.sucesso) {
+        lembrarSessao(res.token);
+        state.role = res.permissao || 'admin';
+        state.email = email;
+        state.navi = !!res.navi;
+        $('login-password').value = '';
+        mostrarApp();
+      } else {
+        statusLogin((res && res.erro) || 'E-mail ou senha incorretos.', 'erro');
+      }
+    })
+    .catch((e) => {
+      botao.disabled = false; botao.textContent = 'Entrar no sistema';
+      statusLogin(e.message, 'erro');
+    });
+}
+
+/** Guarda o token da sessao validada no estado E no storage. Todo lugar onde
+ *  uma sessao nasce passa por aqui — e assim ninguem mais fica sem ele. */
+function lembrarSessao(token) {
+  state.token = token || '';
+  safeStorage.setItem('CD_SessionToken', state.token);
+}
+
+function sair() {
+  const token = state.token;
+  state.token = '';
+  // Limpa as DUAS chaves. Se o SGAS_ (da tela antiga) ficasse, recarregar a
+  // pagina logaria de volta sem senha — e as duas telas sao a mesma pessoa no
+  // mesmo navegador, entao sair de uma e sair das duas.
+  safeStorage.setItem('CD_SessionToken', '');
+  safeStorage.setItem('SGAS_SessionToken', '');
+  $('app').hidden = true;
+  $('login-screen').hidden = false;
+  statusLogin('Você saiu do sistema.', 'info');
+  if (state.ambienteGAS && token) chamarServidor('removeSessionToken', [token], 30000).catch(() => null);
+}
+
+/* --------------------------------------------------------------------------
+ * 13. ADMINISTRACAO
+ * ------------------------------------------------------------------------ */
+
+/** Um atalho do painel Admin: nome, uma linha dizendo o que e, e o link. */
+function atalhoHTML(nome, papel, url) {
+  return `<a class="arquivo" href="${esc(url)}" target="_blank" rel="noopener" style="align-items:flex-start">
+    ${ICO.arquivo(14)}
+    <span style="flex:1;min-width:0">
+      <span style="display:block;font:600 12px var(--cond);letter-spacing:.06em;text-transform:uppercase">${esc(nome)}</span>
+      ${papel ? `<span style="display:block;font:400 11px/1.4 var(--body);color:var(--tx-2);margin-top:2px">${esc(papel)}</span>` : ''}
+    </span>
+    <span class="meta" style="margin-top:2px">abrir ↗</span>
+  </a>`;
+}
+
+function abrirAdmin() {
+  $('modal-admin').hidden = false;
+  $('admin-status').hidden = true;
+  $('admin-abas').innerHTML = '<div class="vazio">Carregando os atalhos…</div>';
+  $('admin-bastidores').innerHTML = '';
+
+  chamarServidor('getNotificationEmails', [], 60000)
+    .then((lista) => { $('admin-emails').value = (lista || []).join('\n'); })
+    .catch(() => { $('admin-emails').value = ''; });
+
+  // O servidor confere o token e so responde a admin — esconder o botao e
+  // cortesia, a checagem de verdade e la.
+  chamarServidor('getLinksAdmin', [state.token], 60000)
+    .then((l) => {
+      // As abas que o site le vem primeiro; as antigas (FilaEmails etc.) ficam
+      // num grupo a parte, para ninguem editar achando que mexe em algo.
+      const abas = l.abas || [];
+      const usadas = abas.filter((a) => a.usada);
+      const antigas = abas.filter((a) => !a.usada);
+      $('admin-abas').innerHTML =
+        atalhoHTML('Planilha inteira', 'Todas as abas de uma vez.', l.planilha) +
+        usadas.map((a) => atalhoHTML('Aba ' + a.nome, a.papel, a.url)).join('') +
+        (antigas.length
+          ? `<div class="kicker" style="margin:8px 0 2px">Outras abas — não alimentam o site</div>` +
+            antigas.map((a) => atalhoHTML('Aba ' + a.nome, a.papel, a.url)).join('')
+          : '');
+      $('admin-bastidores').innerHTML =
+        (l.pastaDrive ? atalhoHTML('Pasta raiz no Drive', 'Uma subpasta por pedido, com todos os arquivos.', l.pastaDrive) : '') +
+        atalhoHTML('Editor do código (Apps Script)', 'Onde se rodam as funções de manutenção.', l.editor);
+    })
+    .catch((e) => {
+      $('admin-abas').innerHTML = `<div class="vazio">${esc(e.message)}</div>`;
+    });
+}
+
+function salvarEmails() {
+  const lista = $('admin-emails').value.split('\n').map((s) => s.trim()).filter(Boolean);
+  chamarServidor('saveNotificationEmails', [lista], 60000)
+    .then(() => {
+      const el = $('admin-status');
+      el.hidden = false; el.className = 'status-msg ok';
+      el.textContent = lista.length + ' e-mail(s) salvos.';
+    })
+    .catch((e) => {
+      const el = $('admin-status');
+      el.hidden = false; el.className = 'status-msg erro';
+      el.textContent = e.message;
+    });
+}
+
+/* --------------------------------------------------------------------------
+ * 14. PARTIDA
+ * ------------------------------------------------------------------------ */
+
+function iniciar() {
+  try { state.ambienteGAS = !!(typeof google !== 'undefined' && google.script && google.script.run); }
+  catch (e) { state.ambienteGAS = false; }
+
+  $('busca').addEventListener('input', (e) => { state.q = e.target.value; renderQuadro(); });
+  $('btn-novo').addEventListener('click', () => irPara('novo'));
+  $('btn-sair').addEventListener('click', sair);
+  $('btn-admin').addEventListener('click', abrirAdmin);
+  $('admin-fechar').addEventListener('click', () => { $('modal-admin').hidden = true; });
+  $('admin-salvar').addEventListener('click', salvarEmails);
+
+  $('aviso-ok').addEventListener('click', () => fecharAviso(true));
+  $('aviso-cancelar').addEventListener('click', () => fecharAviso(false));
+  $('backdrop').addEventListener('click', fecharGaveta);
+
+  $('btn-request-login').addEventListener('click', entrar);
+  $('login-password').addEventListener('keydown', (e) => { if (e.key === 'Enter') entrar(); });
+  $('login-email').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('login-password').focus(); });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (!$('modal-aviso').hidden) fecharAviso(false);
+    else if (!$('modal-admin').hidden) $('modal-admin').hidden = true;
+    else if (state.sel) fecharGaveta();
+  });
+
+  checarAutenticacao();
+}
+
+document.addEventListener('DOMContentLoaded', iniciar);
+</script>
+</body>
+</html>

@@ -31,7 +31,12 @@
       // Quebra-cache: cada abertura força o app a vir fresco do Apps Script, em
       // vez de o navegador servir uma versão velha guardada (foi o que travou a
       // tela na V3.1). O app é dinâmico (login, dados) — não deve ser cacheado.
-      document.getElementById('app-frame').src = APP_URL + '?cb=' + Date.now();
+      // V4.2 — a tela nova (o quadro por etapa) sobe em paralelo. A moldura
+      // repassa o ?ui= que vier no endereco, para dar para testar por
+      // .../controlededespachante/?ui=novo sem trocar o padrao de ninguem.
+      var ui = new URLSearchParams(location.search).get('ui');
+      document.getElementById('app-frame').src =
+        APP_URL + '?cb=' + Date.now() + (ui ? '&ui=' + encodeURIComponent(ui) : '');
     } else {
       document.getElementById('carregando').textContent =
         "Falta configurar a URL do app em index.html (variável APP_URL).";

@@ -10,7 +10,7 @@ Arquitetura **Flufa V1** (ver [`CLAUDE.md`](CLAUDE.md) para as decisões).
     Você abre  ─▶  index.html (GitHub Pages, a "moldura")
                          │  embute em tela cheia
                          ▼
-                   App.html  ◀── servido pelo doGet do Apps Script (o "motor")
+            App(Novo).html  ◀── servido pelo doGet do Apps Script (o "motor")
                          │  google.script.run
                          ▼
                    Codigo.gs  ─▶  Google Sheets (armazém) + Drive (PDFs) + e-mail
@@ -30,6 +30,8 @@ Arquitetura **Flufa V1** (ver [`CLAUDE.md`](CLAUDE.md) para as decisões).
 - [x] **Autenticação** — login por senha, whitelist na aba `Usuarios`.
 - [x] **V4** — duas trilhas de cadastro (ata / outros documentos), central única de pedidos
       de pagamento, check "Pagamento no Navi" e conclusão derivada dos dois checks.
+- [x] **V4.2** — tela nova (quadro por etapa + gaveta) vinda do handoff do Claude Design. Subiu em
+      paralelo em `?ui=novo` e **virou o padrão em 10/09** (implantação 23); a V4.1 fica em `?ui=antigo`.
 - [ ] **Deploy** — publicar como Web App anônimo + apontar a moldura (ver [`docs/GUIA_DEPLOY.md`](docs/GUIA_DEPLOY.md)).
 
 ## Rodar

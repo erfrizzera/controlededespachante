@@ -36,7 +36,8 @@ var CABECALHO_ATAS = [
   'Bola',                            // 18  (V3: com quem está a bola — 'Cobra' | 'Despachante')
   'Arquivado na Rede',               // 19  (V3.2: admin marcou que arquivou o doc na rede; guarda a data)
   'Pagamento no Navi',               // 20  (V4: baixa do pagamento no Navi; guarda a data. Só quem tem Navi=SIM)
-  'Tipo'                             // 21  (V4: 'Ata' | 'Documento' — duas trilhas de cadastro)
+  'Tipo',                            // 21  (V4: 'Ata' | 'Documento' — duas trilhas de cadastro)
+  'E-mail Verificado'                // 22  (V4.2: 3º item do checklist do jurídico; guarda a data)
 ];
 
 // V4: os dois tipos de registro. 'Ata' segue o fluxo completo da Junta;
@@ -64,7 +65,16 @@ var ETAPA_FINAL_DOC = 'Devolvido';
  */
 function doGet(e) {
   var token = (e && e.parameter && e.parameter.token) || '';
-  var template = HtmlService.createTemplateFromFile('App');
+
+  // V4.2 no ar: a tela nova (o quadro por etapa) é o PADRÃO. A V4.1 continua
+  // acessível em ?ui=antigo — rede de segurança durante a transição, até
+  // ninguém mais precisar dela. (?ui=novo continua funcionando; dá no mesmo.)
+  // A troca foi uma decisão, não efeito colateral de um push: a V4.2 passou
+  // dias no @HEAD, em ?ui=novo, antes de virar padrão.
+  var ui = ((e && e.parameter && e.parameter.ui) || '');
+  var qualTela = (ui === 'antigo') ? 'App' : 'AppNovo';
+
+  var template = HtmlService.createTemplateFromFile(qualTela);
   template.urlToken = token;
 
   return template.evaluate()
@@ -167,6 +177,7 @@ function temNavi_(email) {
 function getAtas() {
   ensureMigracaoV3_();   // uma vez só: destrava "Pendência" e semeia a Bola
   ensureMigracaoV4_();   // uma vez só: semeia Tipo='Ata' e liga o Navi de quem já era
+  ensureMigracaoV5_();   // uma vez só: religa o chat do antigo 23 e recalcula a pendência
 
   var aba = getAbaAtas_();
   var intervalo = aba.getDataRange();
@@ -194,6 +205,9 @@ function getAtas() {
     var navi = linha[19];
     // Tipo (V4): registro sem tipo gravado é ata (todo o histórico anterior é ata).
     var tipo = String(linha[20] || '').trim() === TIPO_DOCUMENTO ? TIPO_DOCUMENTO : TIPO_ATA;
+    // E-mail de atualização interna (V4.2): 3º check, mesma receita dos outros
+    // dois — a célula guarda a data em que foi marcado.
+    var emailVerif = linha[21];
 
     // Situação (V4.1) — derivada, nunca lida crua da célula.
     // Registro antigo gravado como 'Concluído' vira a etapa final da sua trilha:
@@ -238,7 +252,15 @@ function getAtas() {
       arquivadoRedeEm:   arqRede instanceof Date ? Utilities.formatDate(arqRede, tz, 'dd/MM/yyyy') : String(arqRede || ''),
       pagamentoNavi:     !!(navi && String(navi).trim()),          // V4: baixa do pagamento no Navi
       pagamentoNaviEm:   navi instanceof Date ? Utilities.formatDate(navi, tz, 'dd/MM/yyyy') : String(navi || ''),
-      tipo:              tipo                                       // V4: 'Ata' | 'Documento'
+      tipo:              tipo,                                      // V4: 'Ata' | 'Documento'
+      // --- V4.2, só a tela nova usa ---
+      // A tela nova conclui por BOTÃO (decisão de projeto), então precisa saber
+      // se o 'Concluído' está de fato GRAVADO, e não apenas derivado. As duas
+      // telas convivem porque o botão exige os três checks — que incluem os
+      // dois de que a V4.1 deriva —, então uma nunca desmente a outra.
+      concluidoExplicito: statusCru === 'Concluído',
+      emailVerificado:   !!(emailVerif && String(emailVerif).trim()),
+      emailVerificadoEm: emailVerif instanceof Date ? Utilities.formatDate(emailVerif, tz, 'dd/MM/yyyy') : String(emailVerif || '')
     });
   }
   return atas;
@@ -651,10 +673,107 @@ function getSystemUrl_() {
  * apagar os dois gatilhos antigos de enviarFilaEmails no painel Acionadores. */
 
 /** Monta e envia o e-mail bonito de mudança de status. */
-function sendEmailsOnStatusChange_(ata, statusAntigo, statusNovo) {
-  var emails = getNotificationEmails();
-  if (!emails || emails.length === 0) return;
+/* ==========================================================================
+ * E-MAILS — visual alinhado ao front end (V4.2)
+ * ==========================================================================
+ * Mesma linguagem da tela nova (design system "Industry"): cantos retos, borda
+ * de 1px, um acento só (azul-aço), rótulos em caixa-alta espaçada, tags de
+ * etapa com as mesmas cores do quadro.
+ *
+ * Cliente de e-mail não é navegador. Gmail não carrega fonte da web e o
+ * Outlook ignora rgba e metade do CSS. Por isso: pilha de fontes com
+ * fallback (Barlow só aparece onde existir), cores já "achatadas" sobre o
+ * fundo #f2f2f3 (o .62 de opacidade da tela vira #6e6f70 aqui) e layout em
+ * <table>, que é o que todo cliente respeita.
+ *
+ * A MONTAGEM (montarEmail*_) é separada do ENVIO (send*_): assim dá para ver o
+ * HTML exato de um e-mail sem mandar e-mail nenhum.
+ */
+var EMAIL_ESTILO = {
+  papel:   '#f2f2f3',   // fundo — o mesmo da tela
+  tinta:   '#1d1f20',   // texto principal
+  acento:  '#416180',   // azul-aço escuro: botão principal
+  borda:   '#d0d0d1',   // divisor forte  (rgba .16 sobre o papel)
+  divisor: '#ddddde',   // divisor fraco  (rgba .10)
+  texto2:  '#6e6f70',   // texto secundário (rgba .62 — o mínimo legível)
+  texto3:  '#5d5e5f',   // texto de marca   (rgba .70)
+  barra:   '#a7a8a9',   // traço entre as duas partes da marca (rgba .35)
+  bloco:   '#e9ebee',   // fundo do bloco de dados (tint azul .06)
+  cond:  "'Barlow Condensed','Arial Narrow',Arial,sans-serif",
+  corpo: "'Barlow',Arial,Helvetica,sans-serif",
+  mono:  "ui-monospace,Menlo,Consolas,'Courier New',monospace"
+};
 
+/** Escapa texto antes de ir para o HTML do e-mail. A mensagem do chat é texto
+ *  livre: um "<" solto desmontava o layout — e deixava HTML de fora entrar. */
+function escHtml_(v) {
+  return String(v === null || v === undefined ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/** Tag de etapa, com as mesmas cores do quadro (mapa CHIP do AppNovo). */
+function emailTagEtapa_(status) {
+  var s = String(status || '');
+  var c = { bg: 'transparent', fg: '#416180', bd: '#5980a6' };                 // Enviado / Solicitado
+  if (s === 'Em Protocolo') c = { bg: '#d6ebff', fg: '#2c455d', bd: '#b5d9fd' };
+  else if (s === 'Registrada' || s === 'Devolvido') c = { bg: '#416180', fg: '#f2f2f3', bd: '#416180' };
+  else if (s === 'Concluído') c = { bg: '#1d2d3d', fg: '#f2f2f3', bd: '#1d2d3d' };
+  return '<span style="display:inline-block;padding:3px 8px;border:1px solid ' + c.bd + ';background:' + c.bg +
+    ';color:' + c.fg + ';font-family:' + EMAIL_ESTILO.cond + ';font-weight:600;font-size:11px;' +
+    'letter-spacing:.12em;text-transform:uppercase;line-height:1.3;">' + escHtml_(s) + '</span>';
+}
+
+/** Uma linha "rótulo | valor" do bloco de dados. O valor já vem em HTML. */
+function emailLinha_(rotulo, valorHtml) {
+  var E = EMAIL_ESTILO;
+  return '<tr>' +
+    '<td style="padding:7px 16px 7px 0;width:118px;vertical-align:top;font-family:' + E.corpo + ';' +
+      'font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:' + E.texto2 + ';line-height:1.9;">' +
+      escHtml_(rotulo) + '</td>' +
+    '<td style="padding:7px 0;vertical-align:top;font-family:' + E.corpo + ';font-size:14px;line-height:1.5;color:' + E.tinta + ';">' +
+      valorHtml + '</td>' +
+  '</tr>';
+}
+
+/** Botões: o principal preenchido em azul-aço, o secundário só com borda —
+ *  como na tela. Principal primeiro, que é a ordem da tela. */
+function emailBotoes_(folderUrl, sistemaUrl, rotuloSistema) {
+  var E = EMAIL_ESTILO, botoes = [];
+  var base = 'display:inline-block;padding:10px 18px;font-family:' + E.cond + ';font-weight:600;font-size:12px;' +
+             'letter-spacing:.1em;text-transform:uppercase;text-decoration:none;line-height:1.2;';
+  if (sistemaUrl) botoes.push('<a href="' + escHtml_(sistemaUrl) + '" style="' + base +
+    'background:' + E.acento + ';border:1px solid ' + E.acento + ';color:' + E.papel + ';">' + escHtml_(rotuloSistema) + '</a>');
+  if (folderUrl) botoes.push('<a href="' + escHtml_(folderUrl) + '" style="' + base +
+    'background:transparent;border:1px solid ' + E.borda + ';color:' + E.tinta + ';">Pasta no Drive</a>');
+  if (!botoes.length) return '';
+  return '<div style="margin-top:24px;">' + botoes.join('&nbsp;&nbsp;') + '</div>';
+}
+
+/** A moldura comum aos dois e-mails: barra da marca em cima (como o cabeçalho
+ *  da tela), miolo, e o aviso de rodapé. */
+function emailMoldura_(miolo) {
+  var E = EMAIL_ESTILO;
+  return '' +
+  '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:' + E.papel + ';">' +
+  '<tr><td align="center" style="padding:24px 12px;">' +
+    '<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" ' +
+      'style="width:100%;max-width:600px;background:' + E.papel + ';border:1px solid ' + E.borda + ';border-collapse:collapse;">' +
+      '<tr><td style="padding:16px 24px;border-bottom:1px solid ' + E.borda + ';font-family:' + E.cond + ';">' +
+        '<span style="font-weight:600;font-size:16px;letter-spacing:.16em;text-transform:uppercase;color:' + E.tinta + ';">Cobra Brasil</span>' +
+        '<span style="color:' + E.barra + ';padding:0 12px;font-size:15px;">|</span>' +
+        '<span style="font-weight:400;font-size:14px;letter-spacing:.1em;text-transform:uppercase;color:' + E.texto3 + ';">Controle Despachante</span>' +
+      '</td></tr>' +
+      '<tr><td style="padding:26px 24px 28px;font-family:' + E.corpo + ';color:' + E.tinta + ';">' + miolo + '</td></tr>' +
+      '<tr><td style="padding:14px 24px;border-top:1px solid ' + E.divisor + ';font-family:' + E.corpo + ';' +
+        'font-size:11px;color:' + E.texto2 + ';">Aviso automático do Controle Despachante — Cobra Brasil.</td></tr>' +
+    '</table>' +
+  '</td></tr></table>';
+}
+
+/** E-mail de mudança de status: devolve { assunto, html, texto }. Não envia. */
+function montarEmailStatus_(ata, statusAntigo, statusNovo) {
+  var E = EMAIL_ESTILO;
   var novo = !statusAntigo;
   var ehDoc = (ata.tipo === TIPO_DOCUMENTO);
   var rotulo = ehDoc ? 'Documento' : 'Ata';
@@ -663,44 +782,77 @@ function sendEmailsOnStatusChange_(ata, statusAntigo, statusNovo) {
     : 'Status atualizado: ' + rotulo + ' ' + ata.id + ' — ' + ata.empresa + ' (' + statusNovo + ')';
 
   var textoStatus = novo
-    ? 'Cadastrada com status inicial: <strong>' + statusNovo + '</strong>'
-    : 'Alterado de <strong>' + statusAntigo + '</strong> para <strong>' + statusNovo + '</strong>';
+    ? 'Cadastrada com status inicial: ' + emailTagEtapa_(statusNovo)
+    : 'Alterado de ' + emailTagEtapa_(statusAntigo) + ' para ' + emailTagEtapa_(statusNovo);
 
-  var sistemaUrl = getSystemUrl_();
+  var frase = novo
+    ? (ehDoc ? 'Um novo pedido de documento foi registrado.'
+             : 'Uma nova ata societária entrou no pipeline de processamento.')
+    : 'O status de ' + (ehDoc ? 'um pedido de documento' : 'uma ata societária') + ' foi alterado.';
 
-  var html =
-    "<div style='font-family:Arial,sans-serif;max-width:600px;border:1px solid #cbd5e1;border-radius:12px;padding:28px;color:#0f172a;background:#fff;'>" +
-      "<div style='text-align:center;margin-bottom:24px;'>" +
-        "<h2 style='color:#1e3a8a;margin:0;font-size:22px;'>Cobra Brasil</h2>" +
-        "<p style='color:#475569;margin:4px 0 0;font-size:13px;text-transform:uppercase;letter-spacing:1px;'>Controle Despachante</p>" +
-      "</div>" +
-      "<hr style='border:0;border-top:1px solid #cbd5e1;margin-bottom:24px;'/>" +
-      "<p style='font-size:15px;color:#334155;'>" +
-        (novo ? (ehDoc ? "Um novo pedido de documento foi registrado."
-                       : "Uma nova ata societária entrou no pipeline de processamento.")
-              : "O status de " + (ehDoc ? "um pedido de documento" : "uma ata societária") + " foi alterado.") + "</p>" +
-      "<div style='background:#f8fafc;border-radius:8px;padding:20px;margin:24px 0;border-left:4px solid #2563eb;'>" +
-        "<table style='width:100%;font-size:14px;'>" +
-          "<tr><td style='padding:6px 0;font-weight:600;width:140px;color:#475569;'>" + (ehDoc ? 'ID do Pedido:' : 'ID da Ata:') + "</td><td style='font-weight:600;'>" + ata.id + "</td></tr>" +
-          "<tr><td style='padding:6px 0;font-weight:600;color:#475569;'>Empresa:</td><td>" + ata.empresa + "</td></tr>" +
-          "<tr><td style='padding:6px 0;font-weight:600;color:#475569;'>Descrição:</td><td>" + (ata.descricao || '') + "</td></tr>" +
-          "<tr><td style='padding:6px 0;font-weight:600;color:#475569;'>Tipo:</td><td>" + (ehDoc ? 'Outros documentos' : 'Ata societária') + "</td></tr>" +
-          "<tr><td style='padding:6px 0;font-weight:600;color:#475569;'>Status:</td><td>" + textoStatus + "</td></tr>" +
-        "</table>" +
-      "</div>" +
-      "<div style='text-align:center;margin-top:28px;'>" +
-        (ata.folderUrl ? "<a href='" + ata.folderUrl + "' style='display:inline-block;background:#10b981;color:#fff;padding:12px 22px;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;margin-right:10px;'>📂 Pasta no Drive</a>" : "") +
-        (sistemaUrl ? "<a href='" + sistemaUrl + "' style='display:inline-block;background:#2563eb;color:#fff;padding:12px 22px;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;'>🖥️ Acessar Sistema</a>" : "") +
-      "</div>" +
-      "<hr style='border:0;border-top:1px solid #cbd5e1;margin-top:32px;margin-bottom:16px;'/>" +
-      "<p style='font-size:11px;color:#94a3b8;text-align:center;margin:0;'>Aviso automático do Controle Despachante — Cobra Brasil.</p>" +
-    "</div>";
+  var miolo =
+    '<p style="margin:0 0 18px;font-size:14px;line-height:1.55;color:' + E.tinta + ';">' + frase + '</p>' +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" ' +
+      'style="background:' + E.bloco + ';border:1px solid ' + E.borda + ';">' +
+      '<tr><td style="padding:10px 18px;">' +
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">' +
+          emailLinha_(ehDoc ? 'ID do Pedido' : 'ID da Ata',
+            '<span style="font-family:' + E.mono + ';font-size:13px;">' + escHtml_(ata.id) + '</span>') +
+          emailLinha_('Empresa',
+            '<span style="font-family:' + E.cond + ';font-weight:600;font-size:15px;letter-spacing:.02em;">' + escHtml_(ata.empresa) + '</span>') +
+          emailLinha_('Descrição', escHtml_(ata.descricao || '')) +
+          emailLinha_('Tipo', ehDoc ? 'Outros documentos' : 'Ata societária') +
+          emailLinha_('Status', textoStatus) +
+        '</table>' +
+      '</td></tr>' +
+    '</table>' +
+    emailBotoes_(ata.folderUrl, getSystemUrl_(), 'Acessar Sistema');
 
+  return { assunto: assunto, html: emailMoldura_(miolo),
+           texto: rotulo + ' ' + ata.id + ' (' + ata.empresa + ') — status: ' + statusNovo };
+}
+
+/** E-mail de nova mensagem no chat: devolve { titulo, html }. Não envia.
+ *  A mensagem vem na mesma "bolha" do chat da tela: azul para a Cobra, neutra
+ *  para o despachante, só contorno para o sistema. */
+function montarEmailDevolucao_(p) {
+  var E = EMAIL_ESTILO;
+  var responsavel = (p.novaBola === 'Cobra') ? 'Cobra Brasil' : 'Despachante';
+  var rotulo = (p.tipo === TIPO_DOCUMENTO) ? 'Documento' : 'Ata';
+  var titulo = rotulo + ' ' + p.id + ' — aguardando retorno: ' + responsavel;
+
+  var papel = String(p.papel || '');
+  var pl = papel.toLowerCase();
+  var bolha = (pl === 'cobra')   ? { bg: '#dde2e8',    bd: '#adbfd0', fg: E.tinta,   nome: E.acento }
+            : (pl === 'sistema') ? { bg: 'transparent', bd: '#b6b7b8', fg: '#595a5b', nome: E.texto2 }
+            :                      { bg: E.papel,       bd: '#c7c8c9', fg: E.tinta,   nome: E.tinta };
+
+  var miolo =
+    '<div style="font-family:' + E.cond + ';font-weight:600;font-size:22px;line-height:1.15;color:' + E.tinta + ';">' +
+      'Nova manifestação registrada</div>' +
+    '<div style="margin:6px 0 22px;font-size:12.5px;line-height:1.5;color:' + E.texto2 + ';">' +
+      escHtml_(rotulo + ' ' + p.id + ' — ' + p.empresa) +
+      ' · responsável atual: <strong style="color:' + E.tinta + ';">' + escHtml_(responsavel) + '</strong></div>' +
+    (p.mensagem
+      ? '<div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;color:' + bolha.nome + ';margin-bottom:5px;">' +
+          escHtml_(papel) + '</div>' +
+        '<div style="padding:11px 13px;border:1px solid ' + bolha.bd + ';background:' + bolha.bg + ';color:' + bolha.fg + ';' +
+          'font-size:13.5px;line-height:1.55;">' + escHtml_(p.mensagem).replace(/\n/g, '<br>') + '</div>'
+      : '') +
+    emailBotoes_(p.folderUrl, getSystemUrl_(), 'Abrir sistema');
+
+  return { titulo: titulo, html: emailMoldura_(miolo) };
+}
+
+function sendEmailsOnStatusChange_(ata, statusAntigo, statusNovo) {
+  var emails = getNotificationEmails();
+  if (!emails || emails.length === 0) return;
+  var m = montarEmailStatus_(ata, statusAntigo, statusNovo);
   MailApp.sendEmail({
     to: emails.join(','),
-    subject: assunto,
-    body: rotulo + ' ' + ata.id + ' (' + ata.empresa + ') — status: ' + statusNovo,
-    htmlBody: html,
+    subject: m.assunto,
+    body: m.texto,
+    htmlBody: m.html,
     name: 'Cobra Brasil',
     noReply: true
   });
@@ -801,6 +953,103 @@ function removeSessionToken(token) {
 /** URL da planilha (atalho na tela). */
 function getSpreadsheetUrl() {
   try { return getPlanilha_().getUrl(); } catch (e) { return ''; }
+}
+
+/**
+ * V4.2 — correção manual de "Pendente de quem" (coluna Bola), pela gaveta.
+ *
+ * Só admin: confere o token de verdade, como getLinksAdmin — esconder o campo
+ * na tela é cortesia. Vale até a próxima mensagem de uma PESSOA no chat, que
+ * volta a aplicar a regra de sempre (quem falou por último devolve a vez).
+ *
+ * Deixa rastro no chat, como nota do sistema (que não mexe na bola). Sem esse
+ * rastro a etiqueta contradiria a última mensagem visível e ninguém saberia
+ * por quê.
+ */
+function setPendencia(token, ataId, valor) {
+  var sessao = validateSessionToken(token);
+  if (!sessao || !sessao.sucesso) throw new Error('Sessão inválida. Entre de novo.');
+  if (sessao.permissao !== 'admin') throw new Error('Só o admin pode corrigir a pendência.');
+  if (valor !== 'Cobra' && valor !== 'Despachante') throw new Error('Pendência inválida: ' + valor);
+
+  var aba = getAbaAtas_();
+  var dados = aba.getDataRange().getValues();
+  for (var i = 1; i < dados.length; i++) {
+    if (String(dados[i][0]).trim() !== String(ataId).trim()) continue;
+    var antes = String(dados[i][17] || '').trim();
+    if (antes === valor) return { sucesso: true, mudou: false };
+    aba.getRange(i + 1, 18).setValue(valor);
+    getAbaPendencias_().appendRow([dados[i][0], new Date(), 'Registro do sistema', 'Sistema',
+      'Pendência corrigida manualmente: ' + (antes || '(vazia)') + ' → ' + valor +
+      ' (por ' + sessao.email + '). Vale até a próxima mensagem.', '']);
+    return { sucesso: true, mudou: true };
+  }
+  throw new Error('Pedido não encontrado.');
+}
+
+// ID do projeto do Apps Script (o mesmo do .clasp.json). Fica escrito aqui, e
+// nao lido por ScriptApp.getScriptId(), de proposito: ScriptApp puxa o escopo
+// script.scriptapp, e esse escopo ja deixou o app EM BRANCO uma vez dentro do
+// iframe (a licao do item 4 cancelado). Um link de atalho nao vale esse risco.
+var SCRIPT_ID_PROJETO = '1y720zyUSAysHkcOLLKRawzYFwZZ6aBLCGn_1BOQZz8g_9_hW__3nTn3q';
+
+/**
+ * V4.2 — os atalhos do painel Admin: a planilha, cada aba que alimenta o site,
+ * a pasta raiz do Drive e o editor do codigo.
+ *
+ * Pede o token da sessao e so responde a admin. A tela ja esconde o botao de
+ * quem nao e admin, mas esconder botao nao e controle de acesso — qualquer um
+ * pode chamar esta funcao pelo console. Aqui a checagem e de verdade.
+ *
+ * Os links nao dao acesso sozinhos (a planilha e a pasta raiz nao sao
+ * publicas), mas a aba Usuarios guarda senha em texto puro: nao ha por que
+ * entregar o endereco dela a quem nao e admin.
+ */
+function getLinksAdmin(token) {
+  var sessao = validateSessionToken(token);
+  if (!sessao || !sessao.sucesso) throw new Error('Sessão inválida. Entre de novo.');
+  if (sessao.permissao !== 'admin') throw new Error('Só o admin tem acesso a esses atalhos.');
+
+  var planilha = getPlanilha_();
+  getAbaAtas_();   // garante que as abas auxiliares existem antes de listar
+  var base = planilha.getUrl().replace(/\/edit.*$/, '');
+
+  // O que cada aba e, em uma linha — o painel mostra isso ao lado do link.
+  var PAPEL = {
+    'Atas':       'Os pedidos — uma linha por pedido, com status, protocolo e checks.',
+    'Usuarios':   'Quem entra: e-mail, perfil, senha e acesso ao Navi.',
+    'Pendencias': 'O chat de cada pedido, mensagem por mensagem.',
+    'Reembolsos': 'Os pagamentos lançados, com valor, tipo e comprovante.'
+  };
+
+  var abas = planilha.getSheets().map(function (aba) {
+    var nome = aba.getName();
+    return {
+      nome: nome,
+      // Aba fora da lista (ex.: FilaEmails, do item 4 cancelado) nao alimenta o
+      // site. Dizer isso e melhor que deixar em branco: em branco ela parece
+      // uma variavel do sistema, e alguem vai editar achando que muda algo.
+      papel: PAPEL[nome] || 'Não alimenta o site (aba antiga). Pode ser ignorada.',
+      usada: !!PAPEL[nome],
+      url: base + '/edit#gid=' + aba.getSheetId()
+    };
+  });
+  // As que o site usa primeiro, na ordem acima; o resto (legado) no fim.
+  var ordem = Object.keys(PAPEL);
+  abas.sort(function (a, b) {
+    var ia = ordem.indexOf(a.nome), ib = ordem.indexOf(b.nome);
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  });
+
+  var pasta = '';
+  try { pasta = getPastaRaiz_().getUrl(); } catch (e) {}
+
+  return {
+    planilha: planilha.getUrl(),
+    abas: abas,
+    pastaDrive: pasta,
+    editor: 'https://script.google.com/home/projects/' + SCRIPT_ID_PROJETO + '/edit'
+  };
 }
 
 /** Menu "Admin" quando a planilha é aberta (reset do contador, autorizações). */
@@ -920,6 +1169,75 @@ function setPagamentoNavi(ataId, valor) {
   return 'Não encontrado';
 }
 
+/**
+ * V4.2 — marca/desmarca "Verificado e-mail de atualização interna" (coluna 22),
+ * o 3º item do checklist do jurídico. Mesma receita dos outros dois: grava a
+ * data ao marcar, limpa ao desmarcar.
+ *
+ * Não chama carimbarConclusao_ de propósito: a Data de Conclusão pertence à
+ * regra da V4.1 (dois checks) e à tela velha. Quem carimba na trilha nova é
+ * concluirPedido, e só ele.
+ */
+function setEmailVerificado(ataId, valor) {
+  var aba = getAbaAtas_();
+  var dados = aba.getDataRange().getValues();
+  for (var i = 1; i < dados.length; i++) {
+    if (String(dados[i][0]) === String(ataId)) {
+      aba.getRange(i + 1, 22).setValue(valor ? new Date() : '');
+      return 'Sucesso';
+    }
+  }
+  return 'Não encontrado';
+}
+
+/**
+ * V4.2 — o botão CONCLUIR PEDIDO da tela nova. Grava 'Concluído' no Status e
+ * carimba a Data de Conclusão.
+ *
+ * A checagem dos três itens é refeita AQUI, e não só na tela: um botão
+ * desabilitado é uma cortesia visual, não uma garantia. Quem garante é o
+ * servidor, que é o único que enxerga a planilha de verdade.
+ */
+function concluirPedido(ataId) {
+  var aba = getAbaAtas_();
+  var dados = aba.getDataRange().getValues();
+  for (var i = 1; i < dados.length; i++) {
+    if (String(dados[i][0]) !== String(ataId)) continue;
+
+    var linha = i + 1;
+    var rede  = String(dados[i][18] || '').trim();
+    var navi  = String(dados[i][19] || '').trim();
+    var mail  = String(dados[i][21] || '').trim();
+    if (!rede || !navi || !mail) {
+      throw new Error('Complete os três itens do Checklist para concluir o pedido.');
+    }
+
+    aba.getRange(linha, 5).setValue('Concluído');
+    if (!aba.getRange(linha, 15).getValue()) aba.getRange(linha, 15).setValue(new Date());
+    return { sucesso: true };
+  }
+  throw new Error('Pedido não encontrado.');
+}
+
+/* (V4.2) corrigirPedidosDuplicados saiu: nunca chegou a rodar — o 22/23 foi
+ * corrigido à mão na planilha, e a migração V5 (terminarCorrecaoDuplicados_)
+ * terminou o que faltou. Uma função destrutiva adormecida não vai para a
+ * produção. Fica renumerarFilhos_, que a migração usa. */
+
+/** Troca o "ID da Ata" (coluna 1) nas abas filhas. Devolve quantas linhas mudou. */
+function renumerarFilhos_(aba, de, para) {
+  var dados = aba.getDataRange().getValues();
+  var n = 0;
+  for (var i = 1; i < dados.length; i++) {
+    if (String(dados[i][0]).trim() === String(de)) {
+      aba.getRange(i + 1, 1).setValue(para);
+      n++;
+    }
+  }
+  return n;
+}
+
+
 /** Muda só o Status Financeiro de uma ata (legado V2; sem chamador na V4). */
 function setStatusFinanceiro(ataId, novo) {
   var aba = getAbaAtas_();
@@ -988,6 +1306,165 @@ function getPendencias(ataId) {
 }
 
 /**
+ * V4.2 — resumo do chat de TODOS os pedidos numa leitura só.
+ *
+ * O quadro precisa do badge de não lidas em cada cartão. Pedir o chat pedido a
+ * pedido seriam dezenas de idas ao servidor só para desenhar a tela; aqui a aba
+ * inteira é varrida uma vez e devolve, por pedido, o total de mensagens e os
+ * horários das que vieram do despachante. Quem é "não lida" o navegador decide,
+ * comparando com a última vez que aquele usuário abriu o pedido.
+ *
+ * Devolve { '0041': { total: 4, desp: [1757000000000, ...] }, ... }
+ */
+function getResumoChats() {
+  var dados = getAbaPendencias_().getDataRange().getValues();
+  var mapa = {};
+  for (var i = 1; i < dados.length; i++) {
+    var id = String(dados[i][0] || '');
+    if (!id) continue;
+    if (!mapa[id]) mapa[id] = { total: 0, desp: [] };
+    mapa[id].total++;
+    if (String(dados[i][3] || '').trim().toLowerCase() === 'despachante') {
+      mapa[id].desp.push(dados[i][1] instanceof Date ? dados[i][1].getTime() : 0);
+    }
+  }
+  return mapa;
+}
+
+/**
+ * V4.2 — MIGRADO_V5. Roda UMA vez, no primeiro getAtas, mesma receita das V3/V4.
+ *
+ *  1) Termina a correção dos pedidos 22/23 (terminarCorrecaoDuplicados_).
+ *  2) Recalcula a pendência (coluna Bola) de TODOS os pedidos pelo chat.
+ *
+ * A ordem importa: se o chat do antigo 23 não for religado ao 22 antes, o
+ * recálculo vê o 22 sem mensagem nenhuma e o manda para o Despachante — errado,
+ * porque a última palavra ali foi do despachante.
+ *
+ * Idempotente: rodar de novo recalcula a mesma coisa. O que mudou fica em
+ * MIGRADO_V5_LOG (Script Properties) e no Logger.
+ */
+function ensureMigracaoV5_() {
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty('MIGRADO_V5') === 'ok') return;
+  try {
+    var log = terminarCorrecaoDuplicados_().concat(recalcularPendencias_());
+    props.setProperty('MIGRADO_V5', 'ok');
+    props.setProperty('MIGRADO_V5_LOG', (log.join(' | ') || 'nada mudou').slice(0, 8000));
+    Logger.log('Migração V5: ' + (log.join(' | ') || 'nada mudou'));
+  } catch (e) { Logger.log('Migração V5 falhou (tenta de novo no próximo acesso): ' + e); }
+}
+
+/**
+ * A cauda da correção dos duplicados de 09/09. A linha do 22 foi apagada e o 23
+ * virou 22 — mas a mensagem do despachante continuou gravada com o ID 23 na aba
+ * Pendencias, órfã, e o contador pode ter ficado em 23.
+ *
+ * Só age no estado EXATO em que a correção parou: não existe mais pedido 23 e o
+ * 22 é o Lins 05. Qualquer outra coisa (um 23 legítimo criado depois, por ex.)
+ * e ela não toca em nada — religar o chat a um pedido errado seria pior do que
+ * deixá-lo órfão.
+ */
+function terminarCorrecaoDuplicados_() {
+  var log = [];
+  var dados = getAbaAtas_().getDataRange().getValues();
+  var porId = {}, maior = 0;
+  for (var i = 1; i < dados.length; i++) {
+    var id = String(dados[i][0] || '').trim();
+    if (!id) continue;
+    porId[id] = dados[i];
+    var n = parseInt(id, 10);
+    if (!isNaN(n) && n > maior) maior = n;
+  }
+  var r22 = porId['22'];
+  if (porId['23'] || !r22 || String(r22[2]).indexOf('Lins 05') === -1) return log;
+
+  var nChat = renumerarFilhos_(getAbaPendencias_(), 23, 22);
+  var nPag  = renumerarFilhos_(getAbaReembolsos_(), 23, 22);
+  if (nChat) log.push('Pedido 22: ' + nChat + ' mensagem(ns) do antigo 23 religada(s)');
+  if (nPag)  log.push('Pedido 22: ' + nPag + ' pagamento(s) do antigo 23 religado(s)');
+
+  var props = PropertiesService.getScriptProperties();
+  if (maior === 22 && props.getProperty('LAST_ID') === '23') {
+    props.setProperty('LAST_ID', '22');
+    log.push('Contador: o próximo pedido volta a ser 23');
+  }
+
+  // As pastas do Drive. A correção foi feita à mão na planilha, então as
+  // pastas ficaram com os nomes de antes: a do pedido que FICOU se chama
+  // "0023 - …" e a do 22 original, órfã, "0022 - …". Primeiro marca a órfã,
+  // depois renomeia a que ficou — nesta ordem, para nunca existirem duas
+  // "0022 - …". Renomear, nunca apagar: o PDF lá dentro é do cliente.
+  try {
+    var aba = getAbaAtas_();
+    var linha22 = -1;
+    for (var k = 1; k < dados.length; k++) {
+      if (String(dados[k][0]).trim() === '22') { linha22 = k + 1; break; }
+    }
+    var rico = aba.getRange(linha22, 12).getRichTextValue();
+    var url = rico ? (rico.getLinkUrl() || '') : '';
+    var idFica = (url.match(/folders\/([-\w]+)/) || [])[1];
+    if (idFica) {
+      var tz = aba.getParent().getSpreadsheetTimeZone() || 'America/Sao_Paulo';
+      var subs = getPastaRaiz_().getFolders();
+      while (subs.hasNext()) {
+        var f = subs.next(), nome = f.getName();
+        if (f.getId() === idFica) continue;
+        if (/^0*2[23] - /.test(nome) && nome.indexOf('LINS 05') > -1 && nome.indexOf('DUPLICADO') === -1) {
+          f.setName(nome + ' — DUPLICADO, pedido excluído em ' + Utilities.formatDate(new Date(), tz, 'dd/MM/yyyy'));
+          log.push('Pasta órfã do 22 original marcada como DUPLICADO');
+        }
+      }
+      var fica = DriveApp.getFolderById(idFica);
+      var novoNome = fica.getName().replace(/^0*\d+\s*-\s*/, '0022 - ');
+      if (novoNome !== fica.getName()) {
+        fica.setName(novoNome);
+        log.push('Pasta do pedido 22 renomeada para "' + novoNome + '"');
+      }
+    }
+  } catch (e) { log.push('Aviso: as pastas não foram renomeadas (' + e + ')'); }
+
+  return log;
+}
+
+/**
+ * Refaz a coluna Bola de todos os pedidos pela regra única: a pendência é de
+ * quem NÃO falou por último entre as pessoas.
+ *   - última mensagem do despachante        → Cobra
+ *   - última mensagem da Cobra, ou nenhuma  → Despachante (pedido nasce com ele)
+ * Notas do sistema não contam. "Última" é a de data mais recente; empate ou
+ * sem data, vale a linha mais abaixo (a aba só cresce por appendRow).
+ * Devolve a lista do que mudou.
+ */
+function recalcularPendencias_() {
+  var msgs = getAbaPendencias_().getDataRange().getValues();
+  var ultimo = {};
+  for (var i = 1; i < msgs.length; i++) {
+    var id = String(msgs[i][0] || '').trim();
+    var papel = String(msgs[i][3] || '').trim().toLowerCase();
+    if (!id || (papel !== 'despachante' && papel !== 'cobra')) continue;
+    var t = msgs[i][1] instanceof Date ? msgs[i][1].getTime() : 0;
+    if (!ultimo[id] || t >= ultimo[id].t) ultimo[id] = { t: t, papel: papel };
+  }
+
+  var aba = getAbaAtas_();
+  var dados = aba.getDataRange().getValues();
+  var log = [];
+  for (var j = 1; j < dados.length; j++) {
+    var idA = String(dados[j][0] || '').trim();
+    if (!idA) continue;
+    var u = ultimo[idA];
+    var certa = (u && u.papel === 'despachante') ? 'Cobra' : 'Despachante';
+    var atual = String(dados[j][17] || '').trim();
+    if (atual !== certa) {
+      aba.getRange(j + 1, 18).setValue(certa);
+      log.push('Pedido ' + idA + ': pendência ' + (atual || '(vazia)') + ' → ' + certa);
+    }
+  }
+  return log;
+}
+
+/**
  * Registra uma mensagem no chat e PASSA A BOLA para o outro lado.
  * dados = { ataId, autor, papel, mensagem, arquivos:[{nome,url}] }
  * Não congela status. A bola vira o contrário de quem escreveu (papel).
@@ -1013,12 +1490,27 @@ function postDevolucao(dados) {
   }
 
   // Passa a bola: quem escreveu devolve pro outro lado.
+  //
+  // A regra é UMA só: a pendência é de quem NÃO falou por último entre as
+  // PESSOAS. Falou o despachante → Cobra; falou a Cobra → Despachante.
+  // Nota do sistema (papel 'Sistema': transição, pagamento) não é de ninguém e
+  // NÃO mexe na bola. Houve uma versão da V4.2 em que a nota decidia a bola
+  // pela etapa — duas regras para o mesmo dado, que se contradiziam. Ver
+  // recalcularPendencias_, que refaz a coluna inteira por esta mesma regra.
   var papel = String(dados.papel || '').toLowerCase();
-  var novaBola = (papel === 'despachante') ? 'Cobra' : 'Despachante';
+  var bolaAtual = String(linhas[linha - 1][17] || '').trim();
+  var novaBola;
+  if (papel === 'sistema') {
+    novaBola = (bolaAtual === 'Cobra' || bolaAtual === 'Despachante') ? bolaAtual : 'Despachante';
+  } else {
+    novaBola = (papel === 'despachante') ? 'Cobra' : 'Despachante';
+  }
   abaAtas.getRange(linha, 18).setValue(novaBola);
 
   // E-mail de aviso (falha em silêncio).
-  try {
+  // semEmail: a nota de encerramento não avisa ninguém — dizer que alguém
+  // "aguarda retorno" num pedido já encerrado seria mentira.
+  if (!dados.semEmail) try {
     var folderRico = abaAtas.getRange(linha, 12).getRichTextValue();
     sendDevolucaoEmail_({
       id: dados.ataId, empresa: empresa, descricao: descricao, tipo: tipo,
@@ -1038,21 +1530,8 @@ function postDevolucao(dados) {
 function sendDevolucaoEmail_(p) {
   var emails = getNotificationEmails();
   if (!emails || emails.length === 0) return;
-  var responsavel = (p.novaBola === 'Cobra') ? 'Cobra Brasil' : 'Despachante';
-  var rotulo = (p.tipo === TIPO_DOCUMENTO) ? 'Documento' : 'Ata';
-  var titulo = rotulo + ' ' + p.id + ' — aguardando retorno: ' + responsavel;
-  var sistemaUrl = getSystemUrl_();
-  var html =
-    "<div style='font-family:Arial,sans-serif;max-width:600px;border:1px solid #cbd5e1;border-radius:12px;padding:24px;color:#0f172a;'>" +
-      "<h2 style='color:#1e3a8a;margin:0 0 4px;'>Nova manifestação registrada</h2>" +
-      "<p style='color:#475569;margin:0 0 16px;font-size:13px;'>" + rotulo + " " + p.id + " — " + p.empresa + " · responsável atual: <strong>" + responsavel + "</strong></p>" +
-      (p.mensagem ? "<div style='background:#f8fafc;border-left:4px solid #2563eb;border-radius:8px;padding:14px;margin-bottom:16px;'><strong>" + p.papel + ":</strong> " + p.mensagem + "</div>" : "") +
-      "<div style='text-align:center;'>" +
-        (p.folderUrl ? "<a href='" + p.folderUrl + "' style='display:inline-block;background:#10b981;color:#fff;padding:10px 18px;text-decoration:none;border-radius:8px;font-weight:600;font-size:13px;margin-right:8px;'>📂 Pasta no Drive</a>" : "") +
-        (sistemaUrl ? "<a href='" + sistemaUrl + "' style='display:inline-block;background:#2563eb;color:#fff;padding:10px 18px;text-decoration:none;border-radius:8px;font-weight:600;font-size:13px;'>🖥️ Abrir sistema</a>" : "") +
-      "</div>" +
-    "</div>";
-  MailApp.sendEmail({ to: emails.join(','), subject: titulo, htmlBody: html, body: titulo, name: 'Cobra Brasil', noReply: true });
+  var m = montarEmailDevolucao_(p);
+  MailApp.sendEmail({ to: emails.join(','), subject: m.titulo, htmlBody: m.html, body: m.titulo, name: 'Cobra Brasil', noReply: true });
 }
 
 
@@ -1073,6 +1552,20 @@ function sendDevolucaoEmail_(p) {
 
 var TIPO_PAG_REEMBOLSO = 'Reembolso';
 var TIPO_PAG_SERVICO   = 'Serviço';
+// V4.2 — a central passou a aceitar quatro tipos. A lista existe para a leitura
+// e a escrita concordarem sobre o que é um tipo válido; qualquer outra coisa
+// (inclusive pedido antigo com a célula vazia) é lida como Reembolso, que era
+// tudo o que existia antes da V4.
+var TIPOS_PAGAMENTO = [TIPO_PAG_REEMBOLSO, TIPO_PAG_SERVICO, 'Taxa / DARE', 'Cartório'];
+
+/** Devolve o tipo se ele for um dos quatro conhecidos; senão, Reembolso. */
+function normalizarTipoPagamento_(valor) {
+  var t = String(valor || '').trim();
+  for (var i = 0; i < TIPOS_PAGAMENTO.length; i++) {
+    if (TIPOS_PAGAMENTO[i] === t) return t;
+  }
+  return TIPO_PAG_REEMBOLSO;
+}
 
 /** Aba "Reembolsos": uma linha por pedido. Col 7 = "Baixado Em" (legado V4.1);
  *  col 8 = "Tipo". */
@@ -1104,7 +1597,7 @@ function getReembolsos(ataId) {
   for (var i = 1; i < dados.length; i++) {
     if (String(dados[i][0]) !== String(ataId)) continue;
     // Pedido antigo (pré-V4) não tem tipo gravado: tudo que existia era reembolso.
-    var tipoPag = String(dados[i][7] || '').trim() === TIPO_PAG_SERVICO ? TIPO_PAG_SERVICO : TIPO_PAG_REEMBOLSO;
+    var tipoPag = normalizarTipoPagamento_(dados[i][7]);
     itens.push({
       linha:        i + 1,
       dataHora:     dados[i][1] instanceof Date ? Utilities.formatDate(dados[i][1], tz, 'dd/MM/yyyy HH:mm') : String(dados[i][1] || ''),
@@ -1151,7 +1644,7 @@ function postReembolso(dados) {
 
   var arquivos = Array.isArray(dados.arquivos) ? dados.arquivos.filter(function (a) { return a && a.nome; }) : [];
 
-  var tipoPag = (dados.tipo === TIPO_PAG_SERVICO) ? TIPO_PAG_SERVICO : TIPO_PAG_REEMBOLSO;
+  var tipoPag = normalizarTipoPagamento_(dados.tipo);
   var objeto  = dados.objeto || dados.justificativa || '';   // 'justificativa' era o nome na V3
 
   var abaR = getAbaReembolsos_();

@@ -128,13 +128,314 @@ identifica por uma etiqueta "Documento" ao lado do ID, e o "Documento devolvido"
 a coluna `Ata Registrada` (mesma coluna, rótulo diferente — igual ao que já se faz com a aba
 `Pendencias`).
 
-## Modelo de dados (aba `Atas`, 21 colunas)
+## V4.2 — a tela nova (quadro por etapa), em paralelo
+
+Veio de um handoff do Claude Design (`Novo Frontend/`, design system **Industry**): o mesmo
+domínio, outra tela. Sai a tabela com filtros e entra um **quadro de 4 colunas** (A protocolar ·
+Na Junta · Conferência · Concluído) mais uma **gaveta sobreposta** por pedido, com chat,
+checklist e pagamentos em abas.
+
+**Subiu em paralelo e só depois virou o padrão (10/09).** Por dias, `doGet` serviu `AppNovo.html`
+só a quem pedia **`?ui=novo`**, com a V4.1 como padrão — a rede de segurança que faltou na V3.1.
+Hoje é o contrário: **`AppNovo` é o padrão e a V4.1 responde em `?ui=antigo`**, até ninguém mais
+precisar dela.
+
+A moldura repassa o `?ui=` que estiver no endereço, mas **isso só vale depois que a produção
+servir o `AppNovo.html`** — ela aponta para a implantação fixa (hoje a 22, anterior à tela nova),
+e `?ui=novo` ali não acha arquivo nenhum. Enquanto a produção não trocar, o teste é pela URL do
+`@HEAD`, direto, logado como dono:
+`https://script.google.com/macros/s/AKfycbziAqlOmFD_P-BEc2dZhnmguCjdt4cxaAQGYDgYA4U/exec?ui=novo`
+
+> **O `@HEAD` pede login do Google, a produção não.** São implantações diferentes, com níveis de
+> acesso diferentes, e o clasp **não** mexe no nível de acesso de implantação que já existe (a
+> mesma armadilha que o guia de deploy já registrava). Não é bug da tela: é o `@HEAD` sendo um
+> deploy de teste. Logado como dono, o app roda normal e o login por senha do sistema continua
+> valendo por cima.
+
+### O "Concluído" volta a ser gravado — e exige o checklist inteiro
+A V4.1 matou o botão de concluir e derivou tudo dos dois checks. **A tela nova traz o botão de
+volta** (`CONCLUIR PEDIDO`, bloqueado até os **três** itens do checklist), porque foi o que o
+design pediu e um botão que não muda dado seria teatro.
+
+**A regra da coluna "Concluído" é o E das duas coisas:** o Status gravado diz `Concluído` **e** os
+três checks estão marcados. Uma só não basta, nos dois sentidos — só o status é o caso do registro
+antigo (gravado antes de os checks existirem: mostrá-lo como concluído afirmaria uma conferência
+que ninguém fez); só os checks tiraria do botão a única coisa que ele faz.
+
+- `concluirPedido` grava `Concluído` na coluna Status e carimba a Data de Conclusão. A checagem
+  dos três itens é **refeita no servidor** — botão desabilitado é cortesia visual, não garantia.
+- **Desmarcar um check devolve o cartão para a etapa de entrega**, mesmo com `Concluído` na
+  planilha. O status gravado não se perde: volta a valer sozinho quando o checklist fechar de novo.
+- **Consequência visível:** ata antiga gravada como `Concluído` **sem** os três checks aparece em
+  "Conferência". Como o 3º check nasceu agora e está vazio em todo mundo, **todo o histórico
+  concluído volta para a lista na tela nova** até alguém marcar o e-mail e apertar o botão. É a
+  mesma verdade que a V4.1 já contava sobre esses registros, agora com um item a mais. Se o volume
+  incomodar, dá para preencher as colunas 19, 20 e 22 da aba `Atas` em lote, direto na planilha.
+
+### O terceiro check
+`Verificado e-mail de atualização interna` virou a **coluna 22** da aba `Atas`, com a mesma
+receita dos outros dois (guarda a data, `setEmailVerificado` marca/desmarca). **Não precisou de
+migração:** `getAbaAtas_` já reescreve o cabeçalho e insere coluna faltante a cada leitura.
+
+Quem pode marcar o quê segue os perfis da V4.1 — Rede é do admin, Navi é de quem tem `Navi=SIM`,
+e-mail é de todo mundo menos o despachante. Os três aparecem **sempre**, mesmo travados: esconder
+um item faria o `CONCLUIR PEDIDO` parecer bloqueado sem motivo.
+
+### O que a tela nova NÃO inventou de coluna
+Coisas do design que não viraram schema, de propósito:
+- **Prazo desejado** e **observação** do cadastro viram a **primeira mensagem do chat** (é onde o
+  despachante lê mesmo). Arquivo extra do cadastro vai junto como anexo dessa mensagem — a linha
+  só tem um campo de arquivo de entrada.
+- **Data do registro/devolução** fica só na nota do sistema. Não existe coluna para ela e criar
+  uma para exibir um texto seria schema por vaidade.
+- **`\rede\Juridico\...`** — o handoff já marcava o caminho UNC como pendência ("navegador não
+  abre UNC"). Aqui "Abrir pasta" é a **pasta do Drive** que o sistema já cria.
+
+### Peças novas no motor
+- `getResumoChats()` — devolve, numa varredura só da aba `Pendencias`, o total de mensagens e os
+  horários das do despachante por pedido. É o que alimenta o badge de **não lidas** sem fazer
+  dezenas de chamadas para desenhar o quadro. Quem é "não lida" o navegador decide, comparando
+  com a última abertura guardada no `localStorage` (a planilha não guarda leitura). Primeira vez
+  que alguém vê um pedido não vira passivo: marca e conta dali para frente.
+- `postDevolucao` aceita **`semEmail`**, e as **notas do sistema** (transições e pagamentos,
+  papel `Sistema`) **não mexem na pendência** — ver "A regra da pendência", abaixo. A nota de
+  encerramento não manda e-mail: avisar que alguém "aguarda retorno" num pedido encerrado seria
+  mentira. *(Uma primeira versão deixava a nota decidir a bola pela etapa. Saiu: eram duas regras
+  para o mesmo dado.)*
+- **Quatro tipos de pagamento** (`Reembolso`, `Serviço`, `Taxa / DARE`, `Cartório`) via
+  `TIPOS_PAGAMENTO` + `normalizarTipoPagamento_`. Pedido antigo sem tipo continua lido como
+  `Reembolso`.
+
+### O rodapé do cartão: saiu a próxima ação, entrou o que falta
+O protótipo punha a próxima ação no pé de cada cartão (`PROTOCOLAR`, `REGISTRAR`,
+`CONFERIR E ARQUIVAR`, `DEVOLVER DOCUMENTO`, `ENCERRADO`). **Saiu de todas as colunas.** A coluna
+em que o cartão está já diz a etapa; repetir isso em cada cartão gastava a única linha livre do
+rodapé para não acrescentar nada.
+
+No lugar entraram **etiquetas**, e cada coluna mostra só o que ela precisa dizer:
+
+- **"A protocolar", "Na Junta" e "Conferência" — de quem é a vez.** `Cobra` (azul) ou
+  `Despachante` (roxo), lido da coluna `Bola`. Quem escreve no chat está *devolvendo*, então a bola
+  vai para o **outro** lado: falou o despachante, a etiqueta vira `Cobra`, e vice-versa. A
+  Conferência entrou depois de uma primeira versão que a deixava de fora ("o pedido já voltou, o
+  trabalho é interno") — errado: ali ainda corre o **debate dos pagamentos** com o despachante, e
+  a bola continua trocando de lado. Só o Concluído não tem.
+  Fica em **linha própria no rodapé, sob o rótulo "Pendente de quem:"**, separada das demais: na
+  mesma linha, o rótulo seria lido como legenda de todas as etiquetas, e não é.
+- **"A protocolar" — prazo, junto com a de cima.** `Novo` (verde) com menos de **2** dias corridos
+  de envio; `Atrasado` (vermelho) a partir de **5** dias sem sair da coluna. Os limites são
+  `DIAS_NOVO` e `DIAS_ATRASO`, e as faixas não se sobrepõem: entre 2 e 4 dias não há etiqueta de
+  prazo, porque não há nada a dizer.
+- **"Conferência" — pendência.** Sob o rótulo **"Pendente do que:"**, `Rede`, `E-mail`, `Navi` —
+  as que **faltam**, não as que já foram, na mesma ordem do checklist da gaveta. **Cada uma tem a
+  sua cor** (Rede âmbar, E-mail rosa, Navi petróleo), para reconhecer de relance qual falta sem
+  ler; as três ficam de propósito **fora** das cores que já têm significado no quadro (azul = Cobra,
+  roxo = despachante, verde = novo, vermelho = atrasado) — nenhuma cor quer dizer duas coisas.
+  Com as três marcadas vira **`Pronto para concluir`** (preenchida, sem rótulo: nada está
+  pendente): sumir seria pior justamente no momento em que o cartão pede ação.
+
+> **Os rótulos têm espaçamento .06em, não o .12em dos outros micro-rótulos — por medida.** Na
+> coluna mínima (240px) o cartão tem 178px úteis; "PENDENTE DE QUEM:" a .12em (104px) + a etiqueta
+> `DESPACHANTE` (71px) + o gap davam 181, e a etiqueta caía sozinha para a linha de baixo.
+- **"Concluído" — nada.** Acabou.
+
+A etiqueta de responsável **diz "Cobra", não "Jurídico"** como o protótipo propunha — e a gaveta
+foi alinhada junto (`aguardandoDe`). O mesmo fato não pode ter dois nomes na mesma tela.
+
+> **Verde, vermelho e roxo são exceção ao design system**, que é de acento único (azul-aço).
+> Entraram a pedido do cliente — verde/vermelho no prazo, roxo no despachante. São tons surdos, no
+> mesmo peso das tags de status (a "Na Junta" é `#d6ebff`/`#2c455d`), não cores de semáforo: um
+> par saturado brigaria com o resto da tela.
+
+> **O botão de administração já foi um "sol".** A primeira versão era só um ícone, desenhado como
+> círculo mais raios — e ninguém adivinhou o que era. Virou a engrenagem de verdade do Lucide
+> **com o rótulo "Admin" ao lado**. Ícone sozinho só funciona quando o desenho é óbvio; quando há
+> dúvida, o rótulo é mais barato do que a dúvida.
+
+> **O prazo vale para a coluna toda, ata e documento.** O pedido de documento não tira protocolo,
+> mas fica na mesma fila do despachante e envelhece igual: ali "Atrasado" quer dizer "parado tempo
+> demais", que é o que interessa.
+
+O rodapé **só existe quando tem o que dizer** — sem etiquetas e sem não lidas, o cartão termina na
+descrição, em vez de exibir uma linha divisória vazia. O campo `proximo` saiu do mapa `ETAPAS`
+junto, porque ficou sem chamador; o rótulo do botão de ação continua em `ACOES[].rotulo`.
+
+### A busca acha pelo que o cartão mostra
+Além de empresa, descrição, protocolo e id, o campo procura nas **etiquetas** do cartão: digitar
+`navi` lista quem espera a baixa no Navi, `rede` quem falta arquivar, `pronto` quem só espera o
+botão. As etiquetas eram a única coisa visível no quadro que não dava para filtrar.
+
+A regra que segura isso é uma função só, `etiquetasDe`, que devolve **texto**, não HTML — o cartão
+desenha a partir dela e a busca procura nela. Vindo da mesma fonte, **a busca nunca promete o que
+a tela não mostra, nem esconde o que ela mostra**. Se as etiquetas mudarem, a busca acompanha
+sozinha.
+
+A comparação passa por `normalizar`, que reduz os dois lados a **letras e números** — sem acento,
+sem espaço, sem pontuação. `PECÉM` responde a `pecem` e `E-mail` responde a `email`. Isso é mais
+sutil do que parece: a primeira versão trocava pontuação por *espaço*, e aí `E-mail` virava
+`e mail` e quem digitasse `email` não achava nada. Separador tem de sumir de vez, não virar outro
+separador.
+
+### A gaveta tem QUATRO abas (ajuste pós-primeiro-uso)
+No protótipo os "Arquivos vinculados" eram um bloco fixo logo abaixo do resumo. No uso real um
+pedido com muitos anexos empurrava as abas e o chat para fora da tela — quanto mais o pedido
+andava, mais escondido ficava o que importa.
+
+Primeiro a lista desceu para o pé da gaveta, com dobra. Não bastou: **virou aba própria.** A regra
+que ficou é mais geral que o caso — *lista que cresce sem limite não divide espaço com o que o
+usuário olha o tempo todo*. Numa aba ela tem a tela inteira e mostra tudo, sem dobra.
+
+Ordem das abas: **Chat · Pagamentos · Checklist · Arquivos**. O rótulo do chat **não tem
+contador** (era "Chat 9"): número na aba compete com o nome e não diz nada acionável — quem
+precisa da conversa abre a conversa. A gaveta ficou resumo → abas → conteúdo da aba →
+administração, e as ações de admin ("Corrigir dados", "Excluir pedido") são botões ghost sob um
+rótulo "Administração" no rodapé, longe do composer.
+
+Três coisas quebraram no caminho e ficam registradas porque não são óbvias:
+- O composer do chat era `position:sticky; bottom:0`. Com blocos **depois** dele, um elemento
+  grudado no fim da área visível passa por cima deles. Virou estático — a lista de mensagens já
+  tem rolagem própria, que é o que o design pede.
+- O bloco do chat era `flex:1` dentro da coluna que rola. Enquanto ele era o último, isso queria
+  dizer "ocupe o que sobrar"; com blocos embaixo, virou "ceda tudo para eles" — um pedido com 11
+  anexos espremeu o chat em **97px**. Agora tem altura própria (piso 240px, teto 52vh) e
+  `flex:none`. **`flex:1` só significa "ocupe o resto" quando não há mais nada embaixo.**
+- Com quatro abas em vez de três, cada uma cai para ~82px na gaveta mais estreita (340px), e
+  "PAGAMENTOS" no corpo antigo (11px + .14em) estourava. Corpo 10.5px e espaçamento .1em: o
+  rótulo mais largo mede 59px em 82px disponíveis.
+
+> **A prévia do navegador entrega imagem rasgada.** Duas vezes um screenshot mostrou blocos
+> sobrepostos que não existiam. O que vale é medir: `getBoundingClientRect` nos blocos da gaveta
+> denuncia sobreposição de verdade — e foi assim que o chat espremido a 97px apareceu, coisa que
+> o screenshot não mostrava. Para largura de texto, `scrollWidth` também mente quando o overflow
+> é visível; medir com um `<span>` fantasma na mesma fonte.
+
+### O que veio junto sem estar no design
+O design tem duas rotas e nada de administração. Como o admin usa isso, ficou o botão **"Admin"**
+no cabeçalho (só admin) e um **rodapé discreto na gaveta** (só admin) com "Corrigir dados" e
+"Excluir pedido". Ninguém perdeu ferramenta.
+
+**O painel Admin é a porta para os bastidores.** Tem um atalho para **cada aba da planilha que
+alimenta o site** — Atas, Usuarios, Pendencias, Reembolsos, cada uma com uma linha dizendo o que
+guarda —, a planilha inteira, a pasta raiz do Drive e o editor do Apps Script (onde se rodam as
+funções de manutenção), além dos e-mails de notificação. Aba que o site não lê (a `FilaEmails` do
+item 4 cancelado) aparece num grupo à parte, **"não alimentam o site"**: em branco ela pareceria
+uma variável do sistema, e alguém editaria achando que muda algo.
+
+> **Bug do primeiro uso: "Sessão inválida" para quem estava logado.** As duas telas moram na mesma
+> origem e dividem o storage, então a tela nova aceita também o token da antiga (`SGAS_SessionToken`).
+> A validação usava esse token — mas não o **guardava**. O Admin lia só `CD_SessionToken`, mandava
+> token **vazio** e o servidor recusava, com razão. O Sair tinha o mesmo defeito: não revogava a
+> sessão vinda da tela antiga, e recarregar logava de volta sem senha. **Hoje o token validado mora
+> em `state.token`**, preenchido por `lembrarSessao` nos três lugares onde uma sessão nasce (link do
+> e-mail, sessão guardada, login com senha); Admin e Sair leem dali. O Sair limpa as duas chaves:
+> é a mesma pessoa no mesmo navegador. **Lição:** quem aceita credencial de duas fontes tem de
+> guardá-la num lugar só — senão cada consumidor adivinha uma fonte diferente.
+
+Os links vêm de `getLinksAdmin(token)`, que **confere a sessão e só responde a admin**. Esconder o
+botão é cortesia; qualquer um chama a função pelo console, e a aba Usuarios guarda senha em texto
+puro. O link do editor usa o ID do projeto **escrito** em `SCRIPT_ID_PROJETO`, não
+`ScriptApp.getScriptId()`: `ScriptApp` puxa o escopo `script.scriptapp`, o mesmo que já deixou o
+app em branco dentro do iframe.
+
+### O checklist: Navi por último
+Ordem da gaveta: **Rede → E-mail → Navi**. O pagamento no Navi é o último passo do fechamento na
+prática, então fica no fim da lista. As etiquetas de pendência seguem a mesma ordem.
+
+O vocabulário da tela é o do design (**pedido**, **ato societário**, **Jurídico**); o que a
+planilha guarda continua com os nomes antigos (`Ata`, `Cobra`, `Em Protocolo`). A tradução mora
+num lugar só, no mapa `ETAPAS` do `AppNovo.html` — mesma regra do `ROTULO_ETAPA` da V4.
+
+### Manutenção pontual: os pedidos 22 e 23 (09/09/2026)
+Nasceram duplicados num envio duplo do formulário — as duas pastas do Drive foram criadas com
+**meio segundo de diferença** (13:11:16.7 e 13:11:17.2), mesma empresa, mesma descrição, mesmo PDF
+(5.051.744 bytes nos dois). O **23** era o que tinha história (a mensagem do despachante de 09/09
+pedindo as identidades dos representantes); o 22 não tinha chat nem pagamento.
+
+`corrigirPedidosDuplicados` foi escrita para fazer o serviço inteiro — **e saiu do código sem nunca
+ter rodado**, porque a correção acabou feita à mão e a migração V5 terminou o resto (ver abaixo).
+Fica o registro do que o serviço envolvia, que é maior do que parece:
+
+1. confere que as duas linhas são mesmo duplicatas (empresa **e** descrição iguais) e **aborta sem
+   tocar em nada** se não forem;
+2. exclui a linha do 22 e renumera o 23 para 22;
+3. **remapeia as abas filhas** — `Pendencias` e `Reembolsos` apontam para o ID, e sem isso a
+   conversa viraria órfã;
+4. renomeia as pastas do Drive: a do 23 vira `0022 - …`, a do 22 ganha o sufixo
+   `— DUPLICADO, pedido excluído em …`. **Renomear, não apagar** — o PDF lá dentro é o mesmo, mas
+   apagar arquivo do cliente não é decisão de rotina de manutenção;
+5. devolve `LAST_ID` para 22, senão o próximo pedido seria 24 e o 23 ficaria como buraco.
+
+Foi ensaiada antes de tocar no dado real, contra uma planilha simulada com as linhas de verdade:
+12 conferências, incluindo as duas travas (rodar de novo aborta; par não-duplicado aborta).
+
+> **A lição que fica é do cadastro, não da correção:** nada impede um duplo-clique de criar dois
+> pedidos. `reservarProximoId` tem `LockService` e faz o certo — devolve 22 e 23, dois números
+> diferentes. O que falta é a tela travar o botão no primeiro clique.
+
+**O que de fato aconteceu (10/09):** a função não chegou a rodar — a correção foi feita **à mão
+na planilha** (apagada a linha do 22, o 23 redigitado como 22). As pastas do Drive ficaram com os
+nomes antigos, que é como se soube, porque renomeá-las é o primeiro passo da função. E a mensagem
+do despachante **continuou gravada com o ID 23** na aba `Pendencias`: o pedido 22 ficou sem a
+conversa dele, e o contador continuou em 23. A migração V5 (abaixo) terminou o serviço. **Lição:**
+o ID de um pedido não mora numa célula só — `Pendencias` e `Reembolsos` apontam para ele. Mexer
+no ID direto na planilha deixa órfão tudo que pendura nele.
+
+### A regra da pendência ("Pendente de quem") — uma só
+**A pendência é de quem NÃO falou por último entre as pessoas.** Última mensagem do despachante →
+`Cobra`; da Cobra, ou nenhuma → `Despachante` (o pedido nasce com ele). Notas do sistema não
+contam, não são de ninguém. É `postDevolucao` que aplica isso a cada mensagem, e só ele (a tela
+antiga só lê a coluna `Bola`).
+
+**Migração V5 (`ensureMigracaoV5_`, `MIGRADO_V5`)** — roda uma vez no primeiro `getAtas`, como a V3
+e a V4:
+1. `terminarCorrecaoDuplicados_` — religa ao 22 o chat que ficou com o ID 23, devolve `LAST_ID`
+   para 22 e renomeia as pastas (a órfã ganha `— DUPLICADO`, a que ficou vira `0022 - …`). Só age
+   no estado exato em que a correção parou: se já existir um 23 legítimo, não toca em nada.
+2. `recalcularPendencias_` — refaz a coluna `Bola` de **todos** os pedidos pela regra.
+
+**A ordem é obrigatória**, e o ensaio mostra por quê: recalcular antes de religar o chat faria o 22
+parecer sem mensagem e o mandaria para o Despachante — errado, a última palavra ali foi do
+despachante. Ensaiada contra os dados reais de 10/09: **só o pedido 2 (LINS 04) muda** (Cobra →
+Despachante; a última mensagem é da Cobra, em 27/07). Os outros 20 já batiam. O que mudou fica
+em `MIGRADO_V5_LOG`, nas Script Properties.
+
+**Correção manual** — no **Corrigir dados** da gaveta (só admin), campo "Pendente de quem".
+`setPendencia(token, id, valor)` confere a sessão de admin no servidor e **deixa rastro no chat**
+("Pendência corrigida manualmente: … (por …)"): sem isso a etiqueta contradiria a última mensagem
+visível e ninguém saberia por quê. **Vale até a próxima mensagem de uma pessoa**, que reaplica a
+regra. É correção, não trava.
+
+> **Dois defeitos do "Corrigir dados" que o campo novo expôs.** (1) O formulário mora na caixa de
+> aviso, que tem `white-space: pre-wrap` para mensagens de várias linhas — e o formulário, que é
+> HTML, herdava isso: a indentação do template virava linhas em branco entre os campos. Com um
+> campo a mais, os botões de salvar saíram da tela. Agora o formulário liga `white-space: normal`,
+> `avisar`/`confirmar` devolvem o pre-wrap, e a caixa tem teto de altura com rolagem. (2) Se o nome
+> da empresa gravado não estivesse **exatamente** na lista, o seletor caía na primeira opção
+> ("OUTRA") e **salvar trocaria a empresa em silêncio**. Agora o nome gravado entra como opção
+> quando falta na lista. Conferido em 10/09: as 20 empresas reais estão todas na lista — o conserto
+> é preventivo (nome digitado à mão na planilha, empresa nova).
+
+### Os e-mails automáticos, no visual novo
+Os dois e-mails (mudança de status e nova mensagem no chat) ganharam a linguagem da tela: cantos
+retos, borda de 1px, azul-aço como acento único, barra da marca como o cabeçalho do quadro, rótulos
+em caixa-alta espaçada, a etapa como **tag com as mesmas cores do quadro** e a mensagem na mesma
+"bolha" do chat (azul para a Cobra, neutra para o despachante, só contorno para o sistema). **Texto,
+assunto e momento de envio não mudaram** — só a apresentação (e os emojis dos botões saíram).
+
+Cliente de e-mail não é navegador: Gmail não carrega fonte da web e o Outlook ignora `rgba` e metade
+do CSS. Então a Barlow vem com fallback, as cores de opacidade da tela chegam **já achatadas** sobre o
+fundo (o `.62` vira `#6e6f70`) e o layout é em `<table>`. A **montagem** (`montarEmailStatus_`,
+`montarEmailDevolucao_`) ficou separada do **envio**: dá para ver o HTML exato de um e-mail sem mandar
+nada. De brinde, o texto da mensagem agora é escapado (`escHtml_`) — antes, um `<` no chat
+desmontava o e-mail.
+
+## Modelo de dados (aba `Atas`, 22 colunas)
 
 Identificação: `ID` (sequencial 0001…), `Empresa` (lista fixa de empresas do grupo),
 `Descrição`, `Data de Envio`, `Status`, `Status Anterior` (legado V2, não usado na V3),
 `Status Financeiro` (legado V2), `Bola` (V3: `Cobra` | `Despachante`),
 `Arquivado na Rede` (V3.2, guarda a data), `Pagamento no Navi` (V4, guarda a data),
-`Tipo` (V4: `Ata` | `Documento`).
+`Tipo` (V4: `Ata` | `Documento`), `E-mail Verificado` (V4.2: 3º check do checklist, guarda a data).
 Documentos (PDF no Drive; a célula guarda o link): `Ata Assinada`, `Ata Registrada`,
 `Nota Fiscal`, `Comprovante de Despesa`, `Pasta no Drive`.
 Protocolo: `Número do Protocolo`, `Data do Protocolo` (automática).
@@ -206,12 +507,18 @@ Controle de Despachante/
 └── apps-script/         ← o MOTOR (enviado ao Apps Script via clasp ou copiar/colar)
     ├── appsscript.json  ← manifesto (acesso anônimo, roda como dono)
     ├── Codigo.gs        ← backend: CRUD, Drive, e-mail, auth
-    └── App.html         ← a tela do app (servida pelo doGet)
+    ├── AppNovo.html     ← a tela V4.2 (quadro por etapa) — o PADRÃO, servida pelo doGet
+    └── App.html         ← a tela V4.1, servida só com ?ui=antigo (rede de segurança)
 ```
+
+`Novo Frontend/` guarda o handoff do Claude Design que originou a V4.2 (protótipo, tokens do
+design system Industry e `spec/fluxos.md`). É **material de origem**, não código de produção — e
+**não vai para o git**, de propósito: o GitHub Pages publica o repositório inteiro na web, e o pacote
+tem capturas de tela do sistema. O mesmo vale para `design/`.
 
 ## Status
 
-**V4.1.0 no ar (2026-09-09, implantação 22).** Endereço:
+**V4.2.0 no ar (2026-09-10, implantação 23).** Endereço:
 https://erfrizzera.github.io/controlededespachante/
 
 A V4 foi a maior mudança desde a V3 — cadastro, financeiro, coluna Status, e-mail e esquema de
@@ -235,9 +542,9 @@ Estado real da implantação (conferido com `clasp list-deployments` em 2026-08-
 | Onde | O quê |
 |---|---|
 | Implantação de produção | `AKfycbz8FqcbL2DqwkqUH0vmoJ503Vui7G7wwD718-QZrGpVeSUXzNgSPN2g5JG9FrgWeMnF` |
-| Versão servida hoje | **22** (V4.1 completa) — no ar desde 09/09 |
-| Base estável anterior | **21** = V3.2 (o porto seguro pré-V4); **19** = V3.1; **8** = V3.0 puro |
-| Reverter para | versão **21** (`update-deployment -V 21 <deploymentId>`) |
+| Versão servida hoje | **23** (V4.2 — tela nova como padrão) — no ar desde 10/09 |
+| Base estável anterior | **22** = V4.1 (o porto seguro pré-V4.2); **21** = V3.2; **19** = V3.1 |
+| Reverter para | versão **22** (`update-deployment -V 22 <deploymentId>`) — volta código **e** padrão |
 
 **V3.2 = V3.1 + ordenação pelo cabeçalho + filtro "Exibir" + "Arquivado na Rede".** Saiu em dois
 tempos: a versão **20** (03/08) levou o filtro e o checkbox; a **21** (21/08) acrescentou a
@@ -248,8 +555,23 @@ primeira maiúscula) + cifrão por último + coluna "Tempo de Processo" removida
 remoção da coluna foram publicados **um de cada vez** (versões 16→19) porque o item 1 original
 (tempo na descrição) quebrava o app no ar; ver a lição em "Domínio (V3)".
 
-**Nada pendente de implantação.** Código, `version.json` (4.1.0) e implantação (22) estão
-alinhados.
+**V4.2 no ar (10/09, implantação 23): a tela nova é o padrão.** Quem abre o endereço cai no quadro
+por etapa; a V4.1 continua em `?ui=antigo`. Antes de virar padrão, a V4.2 passou pelo `@HEAD` em
+`?ui=novo`, com várias rodadas de ajuste de uso real. O histórico abaixo é de quando ela ainda
+estava só lá.
+
+*(histórico)* **V4.2 no `@HEAD`, aguardando o aval para virar produção (push em 2026-09-09).** O
+`clasp push` subiu os 4 arquivos (`AppNovo.html` incluído) e o remoto foi conferido: bate byte a
+byte com o local. A implantação **22** continua servindo a V4.1 — ela está presa à *versão* 22,
+que é anterior à tela nova, então `?ui=novo` na produção não acha nada. Conferido depois do push:
+a produção responde anônima, 200, com a tela de login da V4.1, igual a antes.
+
+Quando a tela nova for aprovada, é o rito de sempre:
+`create-version` → `update-deployment -V <n> AKfycbz8FqcbL2DqwkqUH0vmoJ503Vui7G7wwD718-QZrGpVeSUXzNgSPN2g5JG9FrgWeMnF`.
+Para reverter, a base estável é a **22**.
+
+**`version.json` foi para 4.2.0 junto com a troca de padrão** — antes disso o selo mentiria,
+porque dizia o que o usuário via e ele ainda via a V4.1.
 
 **O que olhar nos primeiros dias:** com o Concluído derivado, ata antiga gravada como
 `Concluído` **sem** os dois checks voltou a aparecer na lista, como `Registrado` com os checks
@@ -346,6 +668,8 @@ No painel, o mesmo: Implantar → Gerenciar implantações → lápis → versã
 - **Testes:** `node testes/upload.test.js` — o **único** teste do projeto, e de propósito. O
   upload grande só falha em produção, com arquivo de dezenas de MB; e a tela publicada não dá
   para automatizar (o iframe aninhado do Apps Script não aceita clique de fora). Mexeu no
-  `uploadFilePromise`? Rode.
+  `uploadFilePromise` (V4.1) ou no `subirArquivo` (V4.2)? Rode. Desde a V4.2 a bateria roda
+  **duas vezes**, uma por tela: são duas cópias do mesmo algoritmo, e cópia sem teste diverge
+  em silêncio.
 - Segurança por perfil é **na tela** (esconde botões). Endurecer no backend fica pra depois,
   junto da pendência da **senha em texto puro** na aba `Usuarios`.
