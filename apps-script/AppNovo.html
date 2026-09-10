@@ -141,33 +141,31 @@ select.input{cursor:pointer}
   color:var(--paper);background:var(--acc7);padding:2px 6px}
 
 /* ==========================================================================
-   LEGIBILIDADE — opção B ("cartão em relevo"), escolhida pela equipe em 10/09
+   LEGIBILIDADE — opção A ("letra mais escura"), no ar desde 10/09
    ==========================================================================
    Parte da equipe lia o quadro com dificuldade. Medido na tela de antes: o
    texto miúdo dos cartões ficava entre 3,6 e 4,9:1 — o tipo do pedido ABAIXO
    do mínimo de 4,5 — e o contorno do cartão em 1,4:1, quase invisível.
-   Três alternativas foram comparadas lado a lado com a equipe (mockup
-   "Legibilidade do Quadro"); esta pôs o texto miúdo em grafite e fez do
-   cartão uma folha clara sobre um quadro um pouco mais escuro. Todo texto do
-   cartão fica acima de 7:1 (AAA).
+
+   Três alternativas foram comparadas lado a lado (mockup "Legibilidade do
+   Quadro"). A B — cartão claro sobre um quadro mais escuro — chegou a ir ao ar
+   e foi recusada no uso: ficou pesada. Esta é a A: o cartão continua sendo o
+   do sistema (transparente sobre o papel), só o texto miúdo passa do
+   cinza-claro para o grafite e o contorno fica mais firme. Todo texto do
+   cartão acima de 8:1 (AAA).
 
    Os valores moram JUNTOS aqui, depois das regras originais, para a próxima
    revisão achar num lugar só — e para reverter bastar apagar o bloco. */
 :root{
-  --quadro-fundo:#e0e3e7;           /* o chão do quadro, um tom abaixo do papel */
-  --cartao-fundo:#fcfcfd;           /* a folha do cartão */
-  --cartao-borda:rgba(29,31,32,.22);
+  --cartao-fundo:transparent;       /* o cartão continua sendo o do sistema */
+  --cartao-borda:rgba(29,31,32,.34);/* contorno mais firme (era .16) */
   --txt-miudo:#48494a;              /* número, dias, tipo, protocolo, rótulos */
   --txt-desc:#3a3c3e;               /* descrição do pedido */
 }
-#quadro{background:var(--quadro-fundo)}
-.coluna{border-right-color:rgba(29,31,32,.12)}
-.coluna-cab{border-bottom-color:rgba(29,31,32,.22)}
 .coluna-cab .n{color:var(--txt-miudo)}
 .vazio{color:var(--txt-miudo);border-color:rgba(29,31,32,.28)}
-.pedido{background:var(--cartao-fundo);border-color:var(--cartao-borda)}
-.pedido:hover{background:#f1f3f7}                            /* tint azul .07 sobre a folha */
-.pedido.sel{background:#e8edf2;border-color:var(--acc)}       /* tint azul .12 sobre a folha */
+.pedido{border-color:var(--cartao-borda)}
+.pedido.sel{border-color:var(--acc)}
 .pedido .l1,.pedido .prot,.pedido .pendente-de{color:var(--txt-miudo)}
 .pedido .desc{color:var(--txt-desc)}
 .pedido .rodape{border-top-color:var(--cartao-borda)}

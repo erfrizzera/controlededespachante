@@ -309,7 +309,7 @@ Três coisas quebraram no caminho e ficam registradas porque não são óbvias:
 > o screenshot não mostrava. Para largura de texto, `scrollWidth` também mente quando o overflow
 > é visível; medir com um `<span>` fantasma na mesma fonte.
 
-### Legibilidade do quadro — opção B (V4.2.1, implantação 25)
+### Legibilidade do quadro — opção A (V4.2.2, implantação 26; a B passou pela 25)
 Parte da equipe lia o quadro com dificuldade. Antes de mexer, **mediu-se**: o nome da empresa (14,8:1)
 e as etiquetas (6,5 a 8,2:1) estavam bons; o problema era o **texto miúdo em cinza** — tipo do pedido
 em **3,6:1** (abaixo do mínimo de 4,5), número, dias, protocolo e rótulos em **4,5:1** exatos, em letra
@@ -317,13 +317,19 @@ de 9 a 10,5px — e o **contorno do cartão em 1,4:1**, quase invisível.
 
 Em vez de escolher no escuro, montou-se um mockup ("Legibilidade do Quadro", artifact) com o cartão de
 hoje ao lado de três alternativas, a razão de contraste de cada texto medida na própria página e dois
-controles para testar com a equipe (letras miúdas maiores; vista cansada simulada). **A equipe escolheu
-a B, "cartão em relevo":** texto miúdo em grafite `#48494a`, descrição `#3a3c3e`, e o cartão como uma
-folha clara `#fcfcfd` sobre um quadro um tom mais escuro `#e0e3e7`. Todo texto do cartão passa de 7:1.
-O tamanho das letras **não** mudou — era uma decisão separada, e não foi pedida.
+controles para testar com a equipe (letras miúdas maiores; vista cansada simulada).
 
-No código é **um bloco só** no `AppNovo.html` ("LEGIBILIDADE — opção B"), com os tokens `--quadro-fundo`,
-`--cartao-fundo`, `--cartao-borda`, `--txt-miudo`, `--txt-desc`, posto depois das regras originais:
+**Primeiro foi a B, "cartão em relevo"** (implantação 25): cartão claro `#fcfcfd` sobre um quadro um tom
+mais escuro `#e0e3e7`. Foi ao ar e **foi recusada no uso** — no mockup parecia boa, no quadro cheio ficou
+pesada. **Ficou a A, "letra mais escura"** (implantação 26): o cartão continua sendo o do sistema
+(transparente sobre o papel), o contorno sobe de `.16` para `.34`, e o texto miúdo vai para o grafite —
+`#48494a` (8,1:1) e a descrição `#3a3c3e` (9,9:1). Todo texto do cartão passa de 8:1. **Lição:** o mockup
+de comparação escolhe entre opções, mas a palavra final é o quadro cheio, com o dia a dia em cima. Por isso
+a troca foi feita num bloco só, que se substitui sem mexer no resto. O tamanho das letras **não** mudou —
+era uma decisão separada, e não foi pedida.
+
+No código é **um bloco só** no `AppNovo.html` ("LEGIBILIDADE — opção A"), com os tokens `--cartao-fundo`,
+`--cartao-borda`, `--txt-miudo`, `--txt-desc`, posto depois das regras originais:
 reverter é apagar o bloco. A prévia do cartão no cadastro segue os mesmos tokens. A gaveta e o resto da
 tela **não** entraram — o teste foi sobre os cartões; o cinza secundário de lá (`--tx-2`, 4,5:1) é o
 próximo candidato, se a equipe sentir a mesma coisa.
@@ -554,7 +560,7 @@ tem capturas de tela do sistema. O mesmo vale para `design/`.
 
 ## Status
 
-**V4.2.1 no ar (2026-09-10, implantação 25).** Endereço:
+**V4.2.2 no ar (2026-09-10, implantação 26).** Endereço:
 https://erfrizzera.github.io/controlededespachante/
 
 A V4 foi a maior mudança desde a V3 — cadastro, financeiro, coluna Status, e-mail e esquema de
@@ -578,7 +584,8 @@ Estado real da implantação (conferido com `clasp list-deployments` em 2026-08-
 | Onde | O quê |
 |---|---|
 | Implantação de produção | `AKfycbz8FqcbL2DqwkqUH0vmoJ503Vui7G7wwD718-QZrGpVeSUXzNgSPN2g5JG9FrgWeMnF` |
-| Versão servida hoje | **25** (V4.2.1 — legibilidade do quadro, opção B) — 10/09 |
+| Versão servida hoje | **26** (V4.2.2 — legibilidade do quadro, opção A) — 10/09 |
+| Anterior | **25** (V4.2.1 — opção B, recusada no uso) — 10/09 |
 | Anterior | **24** (V4.2 + Data de Conclusão que não se apaga + trava de duplo clique) — 10/09 |
 | Primeira da V4.2 | **23** (tela nova como padrão) — 10/09 |
 | Base estável anterior | **22** = V4.1 (o porto seguro pré-V4.2); **21** = V3.2; **19** = V3.1 |
